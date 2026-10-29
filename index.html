@@ -285,6 +285,64 @@
       margin: 2px;
     }
 
+    /* 🎁 교수별 선물 공략 - 가로 표(Table) 전용 스타일 */
+    .gift-table-container {
+      overflow-x: auto;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      background-color: var(--card-bg);
+    }
+    .gift-table {
+      width: 100%;
+      border-collapse: collapse;
+      color: var(--text-color);
+      text-align: left;
+      font-size: 14px;
+    }
+    .gift-table th {
+      background-color: #14120e;
+      color: var(--accent-color);
+      padding: 12px 16px;
+      font-weight: bold;
+      border-bottom: 2px solid var(--border-color);
+    }
+    .gift-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-color);
+      vertical-align: middle;
+      line-height: 1.5;
+    }
+    .gift-table tbody tr:hover {
+      background-color: rgba(241, 196, 15, 0.05);
+    }
+    .gift-item-name {
+      font-weight: bold;
+      color: #fff;
+    }
+    .gift-prof-badge {
+      display: inline-block;
+      background-color: #3d3728;
+      color: var(--accent-color);
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .gift-action-btn {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: #b8af9c;
+      padding: 3px 8px;
+      font-size: 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-left: 4px;
+    }
+    .gift-action-btn:hover {
+      background-color: var(--accent-color);
+      color: #1a1813;
+    }
+
     .modal {
       display: none;
       position: fixed;
@@ -391,6 +449,7 @@
     <div class="tab-menu">
       <button class="tab-btn active" onclick="switchTab('magic', event)">🔮 마법해금 조건 공유</button>
       <button class="tab-btn" onclick="switchTab('alchemy', event)">🧪 연금술 조합법 공유</button>
+      <button class="tab-btn" onclick="switchTab('gift', event)">🎁 교수별 선물 공략</button>
       <button class="tab-btn" onclick="switchTab('notice', event)">📢 공지사항</button>
     </div>
 
@@ -495,7 +554,49 @@
       <div id="alcGrid" class="grid-container"></div>
     </div>
 
-    <!-- 3. 공지사항 탭 -->
+    <!-- 3. 🎁 교수별 선물 공략 탭 (신규 추가) -->
+    <div id="tab-gift" class="tab-content">
+      <div class="action-bar">
+        <h3>🎁 마법 교수별 선물 & 아이템 공략</h3>
+      </div>
+
+      <div class="filter-search-bar">
+        <div class="search-input-box" style="flex:1;">
+          <input type="text" id="giftSearchInput" placeholder="🔍 아이템 이름, 설명, 교수님 이름 검색..." oninput="renderGifts()">
+        </div>
+      </div>
+
+      <!-- 선물 정보 신규 등록 폼 -->
+      <div id="form-gift-card" class="card" style="display:none;">
+        <h4 style="color:var(--accent-color); margin-top:0;">새 교수 선물 공략 등록</h4>
+        <input type="text" id="giftItemName" placeholder="아이템 이름 (예: 반짝이는 허브)">
+        <input type="text" id="giftProfessor" placeholder="선물 대상 교수 (예: 하르바 교수)">
+        <textarea id="giftDesc" rows="3" placeholder="아이템 설명 및 획득방법 (예: 숲 속 깊은 동굴에서 채집 가능)"></textarea>
+        
+        <div style="display:flex; gap:8px; margin-top:10px;">
+          <button onclick="saveNewGift()">등록하기</button>
+          <button class="btn-secondary" onclick="closeGiftForm()">취소</button>
+        </div>
+      </div>
+
+      <!-- 가로 표(Table) 영역 -->
+      <div class="gift-table-container">
+        <table class="gift-table">
+          <thead>
+            <tr>
+              <th style="width: 25%;">아이템 이름</th>
+              <th style="width: 50%;">아이템 설명</th>
+              <th style="width: 25%;">선물 대상 교수</th>
+            </tr>
+          </thead>
+          <tbody id="giftTableBody">
+            <!-- 데이터가 가로 행(tr)으로 출력됩니다 -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 4. 공지사항 탭 -->
     <div id="tab-notice" class="tab-content">
       <div class="action-bar">
         <h3>기숙사 공지사항</h3>
@@ -534,6 +635,7 @@
     let store = {
       magics: [],
       alchemys: [],
+      gifts: [],
       notices: []
     };
 
@@ -542,6 +644,7 @@
     let pendingAction = null;
     let editingId = null; 
     let editingAlcId = null;
+    let editingGiftId = null;
 
     window.addEventListener('firebase-ready', async () => {
       await loadAllData();
@@ -556,6 +659,9 @@
 
         const aSnap = await getDocs(collection(window.db, "knoxer_alchemys"));
         store.alchemys = aSnap.docs.map(d => ({ firestoreId: d.id, ...d.data() })).sort((a,b) => b.id - a.id);
+
+        const gSnap = await getDocs(collection(window.db, "knoxer_gifts"));
+        store.gifts = gSnap.docs.map(d => ({ firestoreId: d.id, ...d.data() })).sort((a,b) => b.id - a.id);
 
         const nSnap = await getDocs(collection(window.db, "knoxer_notices"));
         store.notices = nSnap.docs.map(d => ({ firestoreId: d.id, ...d.data() })).sort((a,b) => b.id - a.id);
@@ -590,6 +696,8 @@
         btnReg.innerText = "+ 마법해금 정보 등록";
       } else if(tabName === 'alchemy') {
         btnReg.innerText = "+ 연금술 조합법 등록";
+      } else if(tabName === 'gift') {
+        btnReg.innerText = "+ 교수 선물 공략 등록";
       } else {
         btnReg.innerText = "+ 등록하기";
       }
@@ -711,6 +819,15 @@
           document.getElementById('alcImgUrl').value = '';
           document.getElementById('alcFile').value = '';
           formCard.scrollIntoView({ behavior: 'smooth' });
+        } else if(currentTab === 'gift') {
+          editingGiftId = null;
+          renderGifts();
+          const formCard = document.getElementById('form-gift-card');
+          formCard.style.display = 'block';
+          document.getElementById('giftItemName').value = '';
+          document.getElementById('giftProfessor').value = '';
+          document.getElementById('giftDesc').value = '';
+          formCard.scrollIntoView({ behavior: 'smooth' });
         } else {
           editingId = null;
           renderMagics();
@@ -731,6 +848,7 @@
 
     function closeMagicForm() { document.getElementById('form-magic-card').style.display = 'none'; }
     function closeAlcForm() { document.getElementById('form-alc-card').style.display = 'none'; }
+    function closeGiftForm() { document.getElementById('form-gift-card').style.display = 'none'; }
 
     function tryAction(callback, event) {
       if(event) event.stopPropagation();
@@ -794,6 +912,30 @@
       closeAlcForm();
       renderAlchemys();
       alert("연금술 조합법이 등록되었습니다!");
+    }
+
+    /* 🎁 교수별 선물 공략 저장 기능 */
+    async function saveNewGift() {
+      const itemName = document.getElementById('giftItemName').value.trim();
+      const professor = document.getElementById('giftProfessor').value.trim();
+      const description = document.getElementById('giftDesc').value.trim();
+
+      if(!itemName || !professor) { alert("아이템 이름과 교수님 이름은 필수입니다."); return; }
+
+      const newGift = {
+        id: Date.now(),
+        itemName,
+        professor,
+        description,
+        date: new Date().toLocaleDateString()
+      };
+
+      const docRef = await addDoc(collection(window.db, "knoxer_gifts"), newGift);
+      store.gifts.unshift({ firestoreId: docRef.id, ...newGift });
+
+      closeGiftForm();
+      renderGifts();
+      alert("선물 공략 정보가 성공적으로 등록되었습니다!");
     }
 
     function startInlineEdit(firestoreId, event) {
@@ -877,6 +1019,40 @@
       alert("연금술 정보가 수정되었습니다!");
     }
 
+    /* 🎁 선물 공략 수정/취소/저장 */
+    function startGiftInlineEdit(firestoreId, event) {
+      if(event) event.stopPropagation();
+      closeGiftForm(); editingGiftId = firestoreId; renderGifts();
+    }
+    function cancelGiftInlineEdit(event) {
+      if(event) event.stopPropagation();
+      editingGiftId = null; renderGifts();
+    }
+
+    async function saveGiftInlineEdit(firestoreId, event) {
+      if(event) event.stopPropagation();
+      const itemName = document.getElementById(`edit_gift_item_${firestoreId}`).value.trim();
+      const professor = document.getElementById(`edit_gift_prof_${firestoreId}`).value.trim();
+      const description = document.getElementById(`edit_gift_desc_${firestoreId}`).value.trim();
+
+      if(!itemName || !professor) { alert("아이템 이름과 교수님 이름은 필수입니다."); return; }
+
+      const target = store.gifts.find(g => g.firestoreId === firestoreId);
+      if(target) {
+        target.itemName = itemName;
+        target.professor = professor;
+        target.description = description;
+
+        await updateDoc(doc(window.db, "knoxer_gifts", firestoreId), {
+          itemName, professor, description
+        });
+      }
+
+      editingGiftId = null;
+      renderGifts();
+      alert("선물 정보가 수정되었습니다!");
+    }
+
     async function deleteMagic(firestoreId, event) {
       if(event) event.stopPropagation();
       if(!confirm("정말 이 해금 정보를 삭제하시겠습니까?")) return;
@@ -892,6 +1068,15 @@
       await deleteDoc(doc(window.db, "knoxer_alchemys", firestoreId));
       store.alchemys = store.alchemys.filter(a => a.firestoreId !== firestoreId);
       renderAlchemys();
+      alert("삭제되었습니다.");
+    }
+
+    async function deleteGift(firestoreId, event) {
+      if(event) event.stopPropagation();
+      if(!confirm("정말 이 선물 공략 정보를 삭제하시겠습니까?")) return;
+      await deleteDoc(doc(window.db, "knoxer_gifts", firestoreId));
+      store.gifts = store.gifts.filter(g => g.firestoreId !== firestoreId);
+      renderGifts();
       alert("삭제되었습니다.");
     }
 
@@ -928,6 +1113,7 @@
     function renderAll() {
       renderMagics();
       renderAlchemys();
+      renderGifts();
       renderNotices();
     }
 
@@ -1069,6 +1255,60 @@
 
               ${a.description ? `<div style="font-size:13px; color:#cbd5e0; margin-top:8px; white-space:pre-wrap; line-height: 1.4; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;">${escapeHtml(a.description)}</div>` : ''}
             </div>
+          `;
+        }
+      });
+    }
+
+    /* 🎁 교수별 선물 공략 표(Table) 렌더링 함수 */
+    function renderGifts() {
+      const tbody = document.getElementById('giftTableBody');
+      const searchKeyword = document.getElementById('giftSearchInput') ? document.getElementById('giftSearchInput').value.toLowerCase().trim() : '';
+      tbody.innerHTML = '';
+
+      let filtered = store.gifts.filter(g => {
+        return (!searchKeyword || 
+          (g.itemName && g.itemName.toLowerCase().includes(searchKeyword)) || 
+          (g.professor && g.professor.toLowerCase().includes(searchKeyword)) || 
+          (g.description && g.description.toLowerCase().includes(searchKeyword))
+        );
+      });
+
+      if(filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:#777; padding:20px;">조건에 일치하는 교수 선물 공략이 없습니다.</td></tr>`;
+        return;
+      }
+
+      filtered.forEach(g => {
+        const isEditing = (editingGiftId === g.firestoreId);
+
+        if (isEditing) {
+          tbody.innerHTML += `
+            <tr style="background-color: #201d16;">
+              <td><input type="text" id="edit_gift_item_${g.firestoreId}" value="${escapeHtml(g.itemName)}" placeholder="아이템 이름" style="margin:0;"></td>
+              <td><textarea id="edit_gift_desc_${g.firestoreId}" rows="2" placeholder="아이템 설명" style="margin:0;">${escapeHtml(g.description)}</textarea></td>
+              <td>
+                <input type="text" id="edit_gift_prof_${g.firestoreId}" value="${escapeHtml(g.professor)}" placeholder="선물 대상 교수" style="margin-bottom:5px;">
+                <div style="display:flex; gap:4px;">
+                  <button onclick="saveGiftInlineEdit('${g.firestoreId}', event)" style="padding:4px 8px; font-size:12px;">저장</button>
+                  <button class="btn-secondary" onclick="cancelGiftInlineEdit(event)" style="padding:4px 8px; font-size:12px;">취소</button>
+                </div>
+              </td>
+            </tr>
+          `;
+        } else {
+          tbody.innerHTML += `
+            <tr>
+              <td class="gift-item-name">📦 ${escapeHtml(g.itemName)}</td>
+              <td style="color:#cbd5e0; white-space:pre-wrap;">${escapeHtml(g.description || '-')}</td>
+              <td>
+                <span class="gift-prof-badge">👨‍🏫 ${escapeHtml(g.professor)}</span>
+                <div style="display:inline-block; margin-left:6px;">
+                  <button class="gift-action-btn" onclick="tryAction(() => startGiftInlineEdit('${g.firestoreId}', event), event)">수정</button>
+                  <button class="gift-action-btn" onclick="tryAction(() => deleteGift('${g.firestoreId}', event), event)" style="color:#fc8181;">삭제</button>
+                </div>
+              </td>
+            </tr>
           `;
         }
       });
