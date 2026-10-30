@@ -58,9 +58,11 @@
     .page-btn.active { background-color: var(--accent-color); color: #1a1813; border-color: var(--accent-color); }
     .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    .magic-card { background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 18px; position: relative; display: flex; flex-direction: column; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: transform 0.2s, border-color 0.2s; }
+    .magic-card { background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 18px; position: relative; display: flex; flex-direction: column; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: transform 0.2s, border-color 0.2s; cursor: grab; }
+    .magic-card:active { cursor: grabbing; }
     .magic-card:hover { border-color: var(--accent-color); transform: translateY(-2px); }
     .magic-card.completed { border-color: #319795; background-color: rgba(49, 151, 149, 0.05); }
+    .magic-card.dragging { opacity: 0.4; border: 2px dashed var(--accent-color); }
 
     .card-title { font-size: 18px; font-weight: bold; color: #fff; margin-bottom: 4px; }
     .card-subtitle { font-size: 12px; color: #b8af9c; margin-bottom: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; }
@@ -747,6 +749,51 @@
         } else {
           const cardEl = document.createElement('div');
           cardEl.className = `magic-card ${isCompleted ? 'completed' : ''}`;
+          cardEl.draggable = true;
+          cardEl.dataset.id = m.id;
+
+          cardEl.addEventListener('dragstart', (e) => {
+            e.dataTransfer.setData('text/plain', m.id);
+            cardEl.classList.add('dragging');
+          });
+
+          cardEl.addEventListener('dragend', () => {
+            cardEl.classList.remove('dragging');
+            document.querySelectorAll('.magic-card').forEach(c => c.style.borderTop = '');
+          });
+
+          cardEl.addEventListener('dragover', (e) => {
+            e.preventDefault();
+          });
+
+          cardEl.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            const draggedId = e.dataTransfer.getData('text/plain');
+            const targetId = m.id;
+            if (draggedId === targetId) return;
+
+            const draggedIdx = store.magics.findIndex(item => String(item.id) === String(draggedId));
+            const targetIdx = store.magics.findIndex(item => String(item.id) === String(targetId));
+
+            if (draggedIdx !== -1 && targetIdx !== -1) {
+              const [movedItem] = store.magics.splice(draggedIdx, 1);
+              store.magics.splice(targetIdx, 0, movedItem);
+
+              store.magics.forEach((item, idx) => {
+                item.order = idx;
+              });
+
+              renderMagics();
+
+              const { doc, updateDoc } = window.firebaseOps;
+              for (let item of store.magics) {
+                await updateDoc(doc(window.db, "knoxer_magics", String(item.id)), {
+                  order: item.order
+                });
+              }
+            }
+          });
+
           cardEl.onclick = (e) => openDetailModal('magic', m.id, e);
           cardEl.innerHTML = `
             <div class="card-action-btns">
