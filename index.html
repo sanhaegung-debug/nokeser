@@ -47,6 +47,7 @@
       margin-bottom: 15px;
       font-size: 0.85em;
       flex-wrap: wrap;
+      align-items: center;
     }
 
     .tab-menu {
@@ -88,7 +89,7 @@
     .filter-search-bar {
       display: flex;
       gap: 10px;
-      margin-bottom: 20px;
+      margin-bottom: 15px;
       flex-wrap: wrap;
       align-items: center;
     }
@@ -102,7 +103,7 @@
       flex: 1;
     }
 
-    .element-sub-btn {
+    .element-sub-btn, .status-sub-btn {
       background-color: #14120e;
       color: #aaa;
       border: 1px solid var(--border-color);
@@ -114,7 +115,7 @@
       flex-shrink: 0;
       transition: all 0.2s;
     }
-    .element-sub-btn.active {
+    .element-sub-btn.active, .status-sub-btn.active {
       background-color: var(--accent-color);
       color: #1a1813;
       border-color: var(--accent-color);
@@ -130,6 +131,29 @@
       padding: 7px 12px;
       border-radius: 20px;
       font-size: 13px;
+    }
+
+    /* 진척도 패널 */
+    .progress-panel {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px 18px;
+      margin-bottom: 20px;
+      font-size: 0.9em;
+    }
+    .progress-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 10px;
+      margin-top: 8px;
+    }
+    .progress-item {
+      background: rgba(20, 18, 14, 0.5);
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      text-align: center;
     }
 
     .card {
@@ -197,6 +221,10 @@
     .magic-card:hover {
       border-color: var(--accent-color);
       transform: translateY(-2px);
+    }
+    .magic-card.completed {
+      border-color: #319795;
+      background-color: rgba(49, 151, 149, 0.05);
     }
 
     .magic-img {
@@ -285,7 +313,7 @@
       margin: 2px;
     }
 
-    /* 🎁 교수별 선물 공략 - 가로 표(Table) 전용 스타일 */
+    /* 선물 표 스타일 */
     .gift-table-container {
       overflow-x: auto;
       border-radius: 8px;
@@ -347,7 +375,7 @@
       display: none;
       position: fixed;
       top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.8);
+      background: rgba(0,0,0,0.85);
       justify-content: center;
       align-items: center;
       z-index: 1000;
@@ -402,12 +430,32 @@
       border-radius: 4px;
     }
     .card-action-btns button:hover { background-color: var(--accent-color); color: #1a1813; }
+
+    .checkbox-container {
+      margin-top: 12px;
+      background: rgba(241, 196, 15, 0.1);
+      border: 1px dashed var(--accent-color);
+      padding: 8px 10px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+    }
+
+    .inline-edit-box {
+      background: #14120e;
+      border: 1px solid var(--accent-color);
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 10px;
+    }
   </style>
 
   <!-- Firebase SDK 로드 및 설정 -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getFirestore, collection, getDocs, addDoc, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getFirestore, collection, getDocs, addDoc, deleteDoc, doc, updateDoc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyCYvLbL_2gBmZhdN9npfhzrZbmUYLE4SG0",
@@ -429,6 +477,8 @@
     window.deleteDoc = deleteDoc;
     window.doc = doc;
     window.updateDoc = updateDoc;
+    window.setDoc = setDoc;
+    window.getDoc = getDoc;
 
     window.dispatchEvent(new Event('firebase-ready'));
   </script>
@@ -442,8 +492,9 @@
     </div>
 
     <div class="user-bar">
-      <span id="userInfoDisplay" style="align-self: center; margin-right: auto; color: #b8af9c;">전체 시청자 모드 (조회 전용)</span>
-      <button id="btnOpenRegister" onclick="tryOpenRegisterForm()">+ 해금 정보 등록 (스트리머 전용)</button>
+      <span id="userInfoDisplay" style="align-self: center; margin-right: auto; color: var(--accent-color);">✨ 접속 중...</span>
+      <button onclick="openLoginModal()" class="btn-secondary">👤 사용자 변경</button>
+      <button id="btnOpenRegister" onclick="tryOpenRegisterForm()">+ 정보 등록</button>
     </div>
 
     <div class="tab-menu">
@@ -455,8 +506,11 @@
 
     <!-- 1. 마법해금 조건 공유 탭 -->
     <div id="tab-magic" class="tab-content active">
-      <div class="action-bar">
-        <h3>노크세르 마법 해금 리스트</h3>
+      
+      <!-- 내 진척도 패널 -->
+      <div id="progressPanel" class="progress-panel">
+        <div style="font-weight: bold; color: var(--accent-color); margin-bottom: 5px;" id="progressTitle">📊 내 마법 해금 진척도</div>
+        <div class="progress-grid" id="progressGrid"></div>
       </div>
 
       <div class="filter-search-bar">
@@ -469,12 +523,20 @@
           <button class="element-sub-btn" onclick="setElementFilter('빛', this)">✨ 빛</button>
           <button class="element-sub-btn" onclick="setElementFilter('어둠', this)">🌑 어둠</button>
         </div>
+      </div>
+
+      <div class="filter-search-bar">
+        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+          <button class="status-sub-btn active" onclick="setStatusFilter('all', this)">📌 전체 보기</button>
+          <button class="status-sub-btn" onclick="setStatusFilter('completed', this)">✅ 해금된 마법</button>
+          <button class="status-sub-btn" onclick="setStatusFilter('uncompleted', this)">❌ 미해금 마법</button>
+        </div>
         <div class="search-input-box">
           <input type="text" id="magicSearchInput" placeholder="🔍 마법 이름, 재료 검색..." oninput="renderMagics()">
         </div>
       </div>
 
-      <!-- 마법 신규 등록 폼 (등록자 란 제거됨) -->
+      <!-- 마법 신규 등록 폼 -->
       <div id="form-magic-card" class="card" style="display:none;">
         <h4 style="color:var(--accent-color); margin-top:0;">새 마법해금 정보 등록</h4>
         <input type="text" id="magTitle" placeholder="마법 이름 (예: 파이어볼 2단계)">
@@ -507,10 +569,6 @@
 
     <!-- 2. 연금술 조합법 공유 탭 -->
     <div id="tab-alchemy" class="tab-content">
-      <div class="action-bar">
-        <h3>노크세르 연금술 조합법 리스트</h3>
-      </div>
-
       <div class="filter-search-bar">
         <div class="search-input-box" style="flex:1;">
           <input type="text" id="alcSearchInput" placeholder="🔍 연금술 완성품, 스트리머, 필요 재료 검색..." oninput="renderAlchemys()">
@@ -521,7 +579,7 @@
       <div id="form-alc-card" class="card" style="display:none;">
         <h4 style="color:var(--accent-color); margin-top:0;">새 연금술 조합법 등록</h4>
         <input type="text" id="alcTitle" placeholder="완성품 / 포션 이름 (예: 상급 체력 포션)">
-        <input type="text" id="alcAuthor" placeholder="스트리머 닉네임">
+        <input type="text" id="alcAuthor" placeholder="스트리머 닉네임" readonly style="background:#14120e; color:#b8af9c;">
         
         <label style="font-size: 0.85em; color: #b8af9c; display: block; margin-top: 5px;">조합 재료 (최대 9가지):</label>
         <div class="ingredients-grid">
@@ -555,10 +613,6 @@
 
     <!-- 3. 🎁 교수별 선물 공략 탭 -->
     <div id="tab-gift" class="tab-content">
-      <div class="action-bar">
-        <h3>🎁 마법 교수별 선물 & 아이템 공략</h3>
-      </div>
-
       <div class="filter-search-bar">
         <div class="search-input-box" style="flex:1;">
           <input type="text" id="giftSearchInput" placeholder="🔍 아이템 이름, 설명, 교수님 이름 검색..." oninput="renderGifts()">
@@ -588,9 +642,7 @@
               <th style="width: 25%;">선물 대상 교수</th>
             </tr>
           </thead>
-          <tbody id="giftTableBody">
-            <!-- 데이터가 가로 행(tr)으로 출력됩니다 -->
-          </tbody>
+          <tbody id="giftTableBody"></tbody>
         </table>
       </div>
     </div>
@@ -617,39 +669,86 @@
     </div>
   </div>
 
-  <!-- 비밀번호 입력 모달 (비밀번호: 223344) -->
-  <div id="authModal" class="modal">
-    <div class="modal-content">
-      <h3 style="margin-top:0; color:var(--accent-color);">스트리머 권한 인증</h3>
-      <p style="font-size:0.85em; color:#b8af9c;">정보를 등록/수정/삭제하려면 스트리머 비밀번호를 입력하세요.</p>
-      <input type="password" id="checkSecretPw" placeholder="비밀번호 입력">
-      <button onclick="verifyPassword()" style="width:100%; margin-top:5px;">인증하기</button>
-      <button class="btn-secondary" onclick="closeModals()" style="width:100%; margin-top:5px;">닫기</button>
+  <!-- 첫 접속 및 사용자 변경 로그인 모달 (비밀번호: 223344) -->
+  <div id="loginModal" class="modal" style="display:flex;">
+    <div class="modal-content" style="max-width: 500px;">
+      <h3 style="margin-top:0; color:var(--accent-color);">✨ 노크세르 기숙사 입장</h3>
+      <p style="font-size:0.85em; color:#b8af9c;">본인의 닉네임을 선택하고 스트리머 비밀번호를 입력해주세요.</p>
+      
+      <label style="font-size:0.85em; color:#cbd5e0; display:block; margin-bottom:5px;">스트리머 선택:</label>
+      <select id="streamerSelect" style="margin-bottom:12px;">
+        <option value="">-- 본인 닉네임을 선택하세요 --</option>
+      </select>
+
+      <label style="font-size:0.85em; color:#cbd5e0; display:block; margin-bottom:5px;">스트리머 비밀번호:</label>
+      <input type="password" id="checkSecretPw" placeholder="비밀번호 입력 (223344)">
+
+      <button onclick="verifyStreamerLogin()" style="width:100%; margin-top:5px; padding:10px;">입장하기</button>
     </div>
   </div>
 
   <script>
     const STREAMER_PASSWORD = "223344"; 
 
+    // 이미지 및 기존 명단에 기반한 노크세르 기숙사 멤버 전체 명단
+    const STREAMERS = [
+      "조디악", "황정민", "엔쥬", "따스히", "꿀탱탱", "피아", "목츄리", "한비", "해리", "김레인",
+      "미루", "연주아", "차투리", "차밍챠", "제이404", "화양씨", "온이유", "코노", "쩜냥이", "코코양",
+      "니프", "손진석", "해이", "아이짱", "호미밍", "도라림", "하코루", "차쯔키", "상어녀", "꽃님", "뀨복", "유소담",
+      "달체솔", "김옥독", "다뮤", "김무우", "이엘리", "설채이", "최은뽀", "라거머핀", "김두부", "춘빵이", "어네빵", "김뭉글",
+      "시로v", "푸마고치", "떙지", "꾸아", "조경훈"
+    ];
+
     let store = {
       magics: [],
       alchemys: [],
       gifts: [],
-      notices: []
+      notices: [],
+      myCompletions: {} 
     };
 
     let currentTab = 'magic';
     let currentElementFilter = 'all';
-    let pendingAction = null;
+    let currentStatusFilter = 'all';
+    let currentStreamer = null;
     let editingId = null; 
     let editingAlcId = null;
     let editingGiftId = null;
 
     window.addEventListener('firebase-ready', async () => {
-      await loadAllData();
-      checkAuthStatus();
-      renderAll();
+      initStreamerSelect();
+      loadSession();
     });
+
+    function initStreamerSelect() {
+      const select = document.getElementById('streamerSelect');
+      STREAMERS.forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.innerText = name;
+        select.appendChild(opt);
+      });
+    }
+
+    async function loadSession() {
+      const saved = sessionStorage.getItem('knoxer_streamer');
+      if (saved) {
+        currentStreamer = saved;
+        document.getElementById('loginModal').style.display = 'none';
+        updateAuthDisplay();
+        await loadAllData();
+        renderAll();
+      } else {
+        document.getElementById('loginModal').style.display = 'flex';
+      }
+    }
+
+    function updateAuthDisplay() {
+      const display = document.getElementById('userInfoDisplay');
+      if (currentStreamer) {
+        display.innerHTML = `✨ <b>${currentStreamer}</b>님 접속 중`;
+      }
+    }
 
     async function loadAllData() {
       try {
@@ -664,21 +763,59 @@
 
         const nSnap = await getDocs(collection(window.db, "knoxer_notices"));
         store.notices = nSnap.docs.map(d => ({ firestoreId: d.id, ...d.data() })).sort((a,b) => b.id - a.id);
+
+        if (currentStreamer) {
+          await loadMyCompletions();
+        }
       } catch (e) {
         console.error("데이터 로딩 실패:", e);
       }
     }
 
-    function checkAuthStatus() {
-      const isAuthed = sessionStorage.getItem('knoxer_authed') === 'true';
-      const display = document.getElementById('userInfoDisplay');
-      if (isAuthed) {
-        display.innerText = "✨ 스트리머 인증 완료 (편집 가능)";
-        display.style.color = "var(--accent-color)";
-      } else {
-        display.innerText = "전체 시청자 모드 (조회 전용)";
-        display.style.color = "#b8af9c";
+    async function loadMyCompletions() {
+      if(!currentStreamer) return;
+      try {
+        const docRef = doc(window.db, "knoxer_user_progress", currentStreamer);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          store.myCompletions = docSnap.data().completions || {};
+        } else {
+          store.myCompletions = {};
+        }
+      } catch(e) {
+        console.error("진척도 로딩 실패:", e);
       }
+    }
+
+    function openLoginModal() {
+      document.getElementById('checkSecretPw').value = '';
+      if(currentStreamer) {
+        document.getElementById('streamerSelect').value = currentStreamer;
+      }
+      document.getElementById('loginModal').style.display = 'flex';
+    }
+
+    async function verifyStreamerLogin() {
+      const selected = document.getElementById('streamerSelect').value;
+      const pwInput = document.getElementById('checkSecretPw').value.trim();
+
+      if(!selected) {
+        alert("본인의 스트리머 닉네임을 선택해주세요.");
+        return;
+      }
+      if (pwInput !== STREAMER_PASSWORD) {
+        alert("스트리머 비밀번호가 틀렸습니다.");
+        return;
+      }
+
+      currentStreamer = selected;
+      sessionStorage.setItem('knoxer_streamer', currentStreamer);
+      document.getElementById('loginModal').style.display = 'none';
+      updateAuthDisplay();
+
+      await loadAllData();
+      renderAll();
+      alert(`${currentStreamer}님 환영합니다!`);
     }
 
     function switchTab(tabName, event) {
@@ -709,6 +846,13 @@
       renderMagics();
     }
 
+    function setStatusFilter(status, btnEl) {
+      currentStatusFilter = status;
+      document.querySelectorAll('.status-sub-btn').forEach(b => b.classList.remove('active'));
+      btnEl.classList.add('active');
+      renderMagics();
+    }
+
     function closeModals() { document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); }
 
     function openImageModal(imgSrc, event) {
@@ -732,7 +876,7 @@
           <span class="badge badge-${elType}">${elType} 속성</span>
           <h2 style="margin: 5px 0 10px 0; color:#fff;">${escapeHtml(item.title)}</h2>
           <div style="font-size:12px; color:#b8af9c; margin-bottom:15px; border-bottom:1px solid var(--border-color); padding-bottom:8px;">
-            등록일: ${item.date || '-'}
+            최종 수정자: ${escapeHtml(item.author)} | 등록일: ${item.date || '-'}
           </div>
           ${item.image ? `<img src="${escapeHtml(item.image)}" style="width:100%; max-height:350px; object-fit:contain; border-radius:8px; margin-bottom:15px; cursor:pointer;" onclick="openImageModal('${escapeHtml(item.image)}', event)">` : ''}
           <div class="info-box" style="font-size:14px; margin-bottom:15px;">
@@ -755,7 +899,7 @@
           <span class="badge badge-연금술">🧪 연금술</span>
           <h2 style="margin: 5px 0 10px 0; color:#fff;">${escapeHtml(item.title)}</h2>
           <div style="font-size:12px; color:#b8af9c; margin-bottom:15px; border-bottom:1px solid var(--border-color); padding-bottom:8px;">
-            등록자: ${escapeHtml(item.author)} | 등록일: ${item.date}
+            최종 수정자: ${escapeHtml(item.author)} | 등록일: ${item.date}
           </div>
           ${item.image ? `<img src="${escapeHtml(item.image)}" style="width:100%; max-height:350px; object-fit:contain; border-radius:8px; margin-bottom:15px; cursor:pointer;" onclick="openImageModal('${escapeHtml(item.image)}', event)">` : ''}
           <div style="background:#14120e; padding:12px; border-radius:6px; border:1px solid var(--border-color); margin-bottom:15px;">
@@ -777,84 +921,51 @@
       document.getElementById('detailModal').style.display = 'none';
     }
 
-    function requireAuth(actionCallback) {
-      const isAuthed = sessionStorage.getItem('knoxer_authed') === 'true';
-      if (isAuthed) {
-        actionCallback();
-      } else {
-        pendingAction = actionCallback;
-        document.getElementById('checkSecretPw').value = '';
-        document.getElementById('authModal').style.display = 'flex';
-      }
-    }
-
-    function verifyPassword() {
-      const pwInput = document.getElementById('checkSecretPw').value.trim();
-      if (pwInput === STREAMER_PASSWORD) {
-        sessionStorage.setItem('knoxer_authed', 'true');
-        closeModals();
-        checkAuthStatus();
-        alert("인증되었습니다! 자유롭게 등록/수정/삭제가 가능합니다.");
-        if (pendingAction) {
-          pendingAction();
-          pendingAction = null;
-        }
-      } else {
-        alert("비밀번호가 틀렸습니다.");
-      }
-    }
-
     function tryOpenRegisterForm() {
-      requireAuth(() => {
-        if(currentTab === 'alchemy') {
-          editingAlcId = null;
-          renderAlchemys();
-          const formCard = document.getElementById('form-alc-card');
-          formCard.style.display = 'block';
-          document.getElementById('alcTitle').value = '';
-          document.getElementById('alcAuthor').value = '';
-          for(let i=1; i<=9; i++) document.getElementById(`alcMat${i}`).value = '';
-          document.getElementById('alcDesc').value = '';
-          document.getElementById('alcImgUrl').value = '';
-          document.getElementById('alcFile').value = '';
-          formCard.scrollIntoView({ behavior: 'smooth' });
-        } else if(currentTab === 'gift') {
-          editingGiftId = null;
-          renderGifts();
-          const formCard = document.getElementById('form-gift-card');
-          formCard.style.display = 'block';
-          document.getElementById('giftItemName').value = '';
-          document.getElementById('giftProfessor').value = '';
-          document.getElementById('giftDesc').value = '';
-          formCard.scrollIntoView({ behavior: 'smooth' });
-        } else {
-          editingId = null;
-          renderMagics();
-          const formCard = document.getElementById('form-magic-card');
-          formCard.style.display = 'block';
-          document.getElementById('magTitle').value = '';
-          document.getElementById('magElement').value = '바람';
-          document.getElementById('magMaterials').value = '';
-          document.getElementById('magLocation').value = '';
-          document.getElementById('magDesc').value = '';
-          document.getElementById('magImgUrl').value = '';
-          document.getElementById('magFile').value = '';
-          formCard.scrollIntoView({ behavior: 'smooth' });
-        }
-      });
+      if(currentTab === 'alchemy') {
+        editingAlcId = null;
+        renderAlchemys();
+        const formCard = document.getElementById('form-alc-card');
+        formCard.style.display = 'block';
+        document.getElementById('alcTitle').value = '';
+        document.getElementById('alcAuthor').value = currentStreamer;
+        for(let i=1; i<=9; i++) document.getElementById(`alcMat${i}`).value = '';
+        document.getElementById('alcDesc').value = '';
+        document.getElementById('alcImgUrl').value = '';
+        document.getElementById('alcFile').value = '';
+        formCard.scrollIntoView({ behavior: 'smooth' });
+      } else if(currentTab === 'gift') {
+        editingGiftId = null;
+        renderGifts();
+        const formCard = document.getElementById('form-gift-card');
+        formCard.style.display = 'block';
+        document.getElementById('giftItemName').value = '';
+        document.getElementById('giftProfessor').value = '';
+        document.getElementById('giftDesc').value = '';
+        formCard.scrollIntoView({ behavior: 'smooth' });
+      } else {
+        editingId = null;
+        renderMagics();
+        const formCard = document.getElementById('form-magic-card');
+        formCard.style.display = 'block';
+        document.getElementById('magTitle').value = '';
+        document.getElementById('magElement').value = '바람';
+        document.getElementById('magMaterials').value = '';
+        document.getElementById('magLocation').value = '';
+        document.getElementById('magDesc').value = '';
+        document.getElementById('magImgUrl').value = '';
+        document.getElementById('magFile').value = '';
+        formCard.scrollIntoView({ behavior: 'smooth' });
+      }
     }
 
     function closeMagicForm() { document.getElementById('form-magic-card').style.display = 'none'; }
     function closeAlcForm() { document.getElementById('form-alc-card').style.display = 'none'; }
     function closeGiftForm() { document.getElementById('form-gift-card').style.display = 'none'; }
 
-    function tryAction(callback, event) {
-      if(event) event.stopPropagation();
-      requireAuth(callback);
-    }
-
     async function saveNewMagic() {
       const title = document.getElementById('magTitle').value.trim();
+      const author = currentStreamer;
       const element = document.getElementById('magElement').value;
       const materials = document.getElementById('magMaterials').value.trim();
       const location = document.getElementById('magLocation').value.trim();
@@ -869,7 +980,7 @@
       else if(fileInput && fileInput.files && fileInput.files[0]) imageUrl = await compressImage(fileInput.files[0]);
 
       const newMagic = {
-        id: Date.now(), title, element, materials, location, description,
+        id: Date.now(), title, author, element, materials, location, description,
         image: imageUrl, date: new Date().toLocaleDateString()
       };
       const docRef = await addDoc(collection(window.db, "knoxer_magics"), newMagic);
@@ -882,7 +993,7 @@
 
     async function saveNewAlchemy() {
       const title = document.getElementById('alcTitle').value.trim();
-      const author = document.getElementById('alcAuthor').value.trim();
+      const author = currentStreamer;
       const description = document.getElementById('alcDesc').value.trim();
       const imgUrlInput = document.getElementById('alcImgUrl') ? document.getElementById('alcImgUrl').value.trim() : '';
       const fileInput = document.getElementById('alcFile');
@@ -893,7 +1004,7 @@
         if(val) materials.push(val);
       }
 
-      if(!title || !author) { alert("완성품 이름과 스트리머 닉네임은 필수입니다."); return; }
+      if(!title) { alert("완성품 이름은 필수입니다."); return; }
 
       let imageUrl = "";
       if(imgUrlInput) imageUrl = imgUrlInput;
@@ -919,10 +1030,7 @@
       if(!itemName || !professor) { alert("아이템 이름과 교수님 이름은 필수입니다."); return; }
 
       const newGift = {
-        id: Date.now(),
-        itemName,
-        professor,
-        description,
+        id: Date.now(), itemName, professor, description,
         date: new Date().toLocaleDateString()
       };
 
@@ -959,11 +1067,11 @@
       if(imgUrl) imageUrl = imgUrl;
 
       if(target) {
-        target.title = title; target.element = element;
+        target.title = title; target.author = currentStreamer; target.element = element;
         target.materials = materials; target.location = location; target.description = description; target.image = imageUrl;
 
         await updateDoc(doc(window.db, "knoxer_magics", firestoreId), {
-          title, element, materials, location, description, image: imageUrl
+          title, author: currentStreamer, element, materials, location, description, image: imageUrl
         });
       }
 
@@ -984,7 +1092,6 @@
     async function saveAlcInlineEdit(firestoreId, event) {
       if(event) event.stopPropagation();
       const title = document.getElementById(`edit_alc_title_${firestoreId}`).value.trim();
-      const author = document.getElementById(`edit_alc_author_${firestoreId}`).value.trim();
       const description = document.getElementById(`edit_alc_desc_${firestoreId}`).value.trim();
       const imgUrl = document.getElementById(`edit_alc_imgUrl_${firestoreId}`).value.trim();
 
@@ -994,18 +1101,18 @@
         if(val) materials.push(val);
       }
 
-      if(!title || !author) { alert("완성품 이름과 스트리머 닉네임은 필수입니다."); return; }
+      if(!title) { alert("완성품 이름은 필수입니다."); return; }
 
       const target = store.alchemys.find(a => a.firestoreId === firestoreId);
       let imageUrl = target ? target.image : "";
       if(imgUrl) imageUrl = imgUrl;
 
       if(target) {
-        target.title = title; target.author = author; target.materials = materials;
+        target.title = title; target.author = currentStreamer; target.materials = materials;
         target.description = description; target.image = imageUrl;
 
         await updateDoc(doc(window.db, "knoxer_alchemys", firestoreId), {
-          title, author, materials, description, image: imageUrl
+          title, author: currentStreamer, materials, description, image: imageUrl
         });
       }
 
@@ -1074,6 +1181,27 @@
       alert("삭제되었습니다.");
     }
 
+    // 개인 해금 상태 토글
+    async function toggleCompletion(firestoreId, event) {
+      if(event) event.stopPropagation();
+
+      const isCompleted = !!store.myCompletions[firestoreId];
+      if(isCompleted) {
+        delete store.myCompletions[firestoreId];
+      } else {
+        store.myCompletions[firestoreId] = true;
+      }
+
+      try {
+        const docRef = doc(window.db, "knoxer_user_progress", currentStreamer);
+        await setDoc(docRef, { completions: store.myCompletions }, { merge: true });
+      } catch (e) {
+        console.error("진척도 저장 실패:", e);
+      }
+
+      renderAll();
+    }
+
     function compressImage(file) {
       return new Promise((resolve) => {
         const reader = new FileReader();
@@ -1105,10 +1233,31 @@
     }
 
     function renderAll() {
+      renderProgressPanel();
       renderMagics();
       renderAlchemys();
       renderGifts();
       renderNotices();
+    }
+
+    function renderProgressPanel() {
+      const grid = document.getElementById('progressGrid');
+      document.getElementById('progressTitle').innerText = `📊 ${currentStreamer}님의 속성별 마법 해금 진척도`;
+      grid.innerHTML = '';
+
+      const elements = ['바람', '화염', '물', '대지', '빛', '어둠'];
+      elements.forEach(el => {
+        const total = store.magics.filter(m => m.element === el).length;
+        const completed = store.magics.filter(m => m.element === el && store.myCompletions[m.firestoreId]).length;
+        const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+        grid.innerHTML += `
+          <div class="progress-item">
+            <div style="font-size: 12px; color: #b8af9c; margin-bottom: 2px;">${el}</div>
+            <div style="font-weight: bold; font-size: 15px; color: #fff;">${completed} / ${total} <span style="font-size:11px; color:var(--accent-color);">(${percent}%)</span></div>
+          </div>
+        `;
+      });
     }
 
     function renderMagics() {
@@ -1123,7 +1272,13 @@
           (m.materials && m.materials.toLowerCase().includes(searchKeyword)) ||
           (m.location && m.location.toLowerCase().includes(searchKeyword))
         );
-        return matchElement && matchSearch;
+        
+        const isCompleted = !!store.myCompletions[m.firestoreId];
+        let matchStatus = true;
+        if(currentStatusFilter === 'completed') matchStatus = isCompleted;
+        if(currentStatusFilter === 'uncompleted') matchStatus = !isCompleted;
+
+        return matchElement && matchSearch && matchStatus;
       });
 
       if(filtered.length === 0) {
@@ -1133,47 +1288,56 @@
 
       filtered.forEach(m => {
         const elType = m.element || '바람';
+        const isCompleted = !!store.myCompletions[m.firestoreId];
         const isEditing = (editingId === m.firestoreId);
 
         if (isEditing) {
           grid.innerHTML += `
             <div class="magic-card" style="border-color: var(--accent-color);">
-              <div style="font-weight: bold; margin-bottom: 10px; color: var(--accent-color);">✨ 마법해금 정보 수정</div>
-              <input type="text" id="edit_title_${m.firestoreId}" value="${escapeHtml(m.title)}" placeholder="마법 이름">
-              <select id="edit_element_${m.firestoreId}">
-                <option value="바람" ${m.element==='바람'?'selected':''}>💨 바람 속성</option>
-                <option value="화염" ${m.element==='화염'?'selected':''}>🔥 화염 속성</option>
-                <option value="물" ${m.element==='물'?'selected':''}>💧 물 속성</option>
-                <option value="대지" ${m.element==='대지'?'selected':''}>🌍 대지 속성</option>
-                <option value="빛" ${m.element==='빛'?'selected':''}>✨ 빛 속성</option>
-                <option value="어둠" ${m.element==='어둠'?'selected':''}>🌑 어둠 속성</option>
-              </select>
-              <input type="text" id="edit_materials_${m.firestoreId}" value="${escapeHtml(m.materials)}" placeholder="필요 재료">
-              <input type="text" id="edit_location_${m.firestoreId}" value="${escapeHtml(m.location)}" placeholder="해금 조건">
-              <textarea id="edit_desc_${m.firestoreId}" rows="3" placeholder="상세 공략">${escapeHtml(m.description)}</textarea>
-              <input type="text" id="edit_imgUrl_${m.firestoreId}" value="${escapeHtml(m.image && m.image.startsWith('http') ? m.image : '')}" placeholder="인증 이미지 URL 링크">
-              <div style="display:flex; gap:8px; margin-top:10px;">
-                <button onclick="saveInlineEdit('${m.firestoreId}', event)">저장</button>
-                <button class="btn-secondary" onclick="cancelInlineEdit(event)">취소</button>
+              <span class="badge badge-${elType}">수정 모드</span>
+              <div class="inline-edit-box">
+                <input type="text" id="edit_title_${m.firestoreId}" value="${escapeHtml(m.title)}" placeholder="마법 이름">
+                <select id="edit_element_${m.firestoreId}">
+                  <option value="바람" ${m.element==='바람'?'selected':''}>💨 바람 속성</option>
+                  <option value="화염" ${m.element==='화염'?'selected':''}>🔥 화염 속성</option>
+                  <option value="물" ${m.element==='물'?'selected':''}>💧 물 속성</option>
+                  <option value="대지" ${m.element==='대지'?'selected':''}>🌍 대지 속성</option>
+                  <option value="빛" ${m.element==='빛'?'selected':''}>✨ 빛 속성</option>
+                  <option value="어둠" ${m.element==='어둠'?'selected':''}>🌑 어둠 속성</option>
+                </select>
+                <input type="text" id="edit_materials_${m.firestoreId}" value="${escapeHtml(m.materials)}" placeholder="필요 재료">
+                <input type="text" id="edit_location_${m.firestoreId}" value="${escapeHtml(m.location)}" placeholder="해금 조건">
+                <textarea id="edit_desc_${m.firestoreId}" rows="2" placeholder="상세 공략">${escapeHtml(m.description)}</textarea>
+                <input type="text" id="edit_imgUrl_${m.firestoreId}" value="${escapeHtml(m.image && m.image.startsWith('http') ? m.image : '')}" placeholder="인증 이미지 URL 링크">
+                
+                <div style="display:flex; gap:6px; margin-top:8px;">
+                  <button onclick="saveInlineEdit('${m.firestoreId}', event)" style="flex:1; padding:6px;">저장</button>
+                  <button class="btn-secondary" onclick="cancelInlineEdit(event)" style="flex:1; padding:6px;">취소</button>
+                </div>
               </div>
             </div>
           `;
         } else {
           grid.innerHTML += `
-            <div class="magic-card" onclick="openDetailModal('magic', '${m.firestoreId}', event)">
+            <div class="magic-card ${isCompleted ? 'completed' : ''}" onclick="openDetailModal('magic', '${m.firestoreId}', event)">
               <div class="card-action-btns">
-                <button onclick="tryAction(() => startInlineEdit('${m.firestoreId}', event), event)">수정</button>
-                <button onclick="tryAction(() => deleteMagic('${m.firestoreId}', event), event)" style="color:#fc8181;">삭제</button>
+                <button onclick="startInlineEdit('${m.firestoreId}', event)">수정</button>
+                <button onclick="deleteMagic('${m.firestoreId}', event)" style="color:#fc8181;">삭제</button>
               </div>
               <span class="badge badge-${elType}">${elType} 속성</span>
               <div class="card-title" style="margin-right: 80px;">${escapeHtml(m.title)}</div>
-              <div class="card-subtitle">등록일: ${m.date || '-'}</div>
+              <div class="card-subtitle">최종 수정자: ${escapeHtml(m.author)} | ${m.date || '-'}</div>
               ${m.image ? `<img src="${escapeHtml(m.image)}" class="magic-img" onclick="openImageModal('${escapeHtml(m.image)}', event)" alt="마법 인증샷">` : ''}
               <div class="info-box">
                 <div class="info-row">필요 재료: <span>${escapeHtml(m.materials || '미입력')}</span></div>
                 <div class="info-row">해금 조건: <span>${escapeHtml(m.location || '미입력')}</span></div>
               </div>
               ${m.description ? `<div style="font-size:13px; color:#cbd5e0; margin-top:10px; white-space:pre-wrap; line-height: 1.4; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;">${escapeHtml(m.description)}</div>` : ''}
+              
+              <div class="checkbox-container" onclick="toggleCompletion('${m.firestoreId}', event)" style="cursor:pointer;">
+                <span>🏆 내 해금 완료 체크</span>
+                <input type="checkbox" ${isCompleted ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer; margin-bottom:0;" onclick="event.stopPropagation(); toggleCompletion('${m.firestoreId}', event)">
+              </div>
             </div>
           `;
         }
@@ -1212,16 +1376,18 @@
 
           grid.innerHTML += `
             <div class="magic-card" style="border-color: var(--accent-color);">
-              <div style="font-weight: bold; margin-bottom: 10px; color: var(--accent-color);">🧪 연금술 조합법 수정</div>
-              <input type="text" id="edit_alc_title_${a.firestoreId}" value="${escapeHtml(a.title)}" placeholder="완성품 이름">
-              <input type="text" id="edit_alc_author_${a.firestoreId}" value="${escapeHtml(a.author)}" placeholder="스트리머 닉네임">
-              <label style="font-size: 0.8em; color: #b8af9c;">조합 재료 (최대 9개):</label>
-              <div class="ingredients-grid">${inputsHtml}</div>
-              <textarea id="edit_alc_desc_${a.firestoreId}" rows="3" placeholder="효과 및 팁">${escapeHtml(a.description)}</textarea>
-              <input type="text" id="edit_alc_imgUrl_${a.firestoreId}" value="${escapeHtml(a.image && a.image.startsWith('http') ? a.image : '')}" placeholder="인증 이미지 URL 링크">
-              <div style="display:flex; gap:8px; margin-top:10px;">
-                <button onclick="saveAlcInlineEdit('${a.firestoreId}', event)">저장</button>
-                <button class="btn-secondary" onclick="cancelAlcInlineEdit(event)">취소</button>
+              <span class="badge badge-연금술">수정 모드</span>
+              <div class="inline-edit-box">
+                <input type="text" id="edit_alc_title_${a.firestoreId}" value="${escapeHtml(a.title)}" placeholder="완성품 이름">
+                <label style="font-size: 0.8em; color: #b8af9c;">조합 재료 (최대 9개):</label>
+                <div class="ingredients-grid">${inputsHtml}</div>
+                <textarea id="edit_alc_desc_${a.firestoreId}" rows="2" placeholder="효과 및 팁">${escapeHtml(a.description)}</textarea>
+                <input type="text" id="edit_alc_imgUrl_${a.firestoreId}" value="${escapeHtml(a.image && a.image.startsWith('http') ? a.image : '')}" placeholder="인증 이미지 URL 링크">
+                
+                <div style="display:flex; gap:6px; margin-top:8px;">
+                  <button onclick="saveAlcInlineEdit('${a.firestoreId}', event)" style="flex:1; padding:6px;">저장</button>
+                  <button class="btn-secondary" onclick="cancelAlcInlineEdit(event)" style="flex:1; padding:6px;">취소</button>
+                </div>
               </div>
             </div>
           `;
@@ -1232,12 +1398,12 @@
           grid.innerHTML += `
             <div class="magic-card" onclick="openDetailModal('alchemy', '${a.firestoreId}', event)">
               <div class="card-action-btns">
-                <button onclick="tryAction(() => startAlcInlineEdit('${a.firestoreId}', event), event)">수정</button>
-                <button onclick="tryAction(() => deleteAlchemy('${a.firestoreId}', event), event)" style="color:#fc8181;">삭제</button>
+                <button onclick="startAlcInlineEdit('${a.firestoreId}', event)">수정</button>
+                <button onclick="deleteAlchemy('${a.firestoreId}', event)" style="color:#fc8181;">삭제</button>
               </div>
               <span class="badge badge-연금술">🧪 연금술</span>
               <div class="card-title" style="margin-right: 80px;">${escapeHtml(a.title)}</div>
-              <div class="card-subtitle">등록자: ${escapeHtml(a.author)} | ${a.date}</div>
+              <div class="card-subtitle">최종 수정자: ${escapeHtml(a.author)} | ${a.date}</div>
               ${a.image ? `<img src="${escapeHtml(a.image)}" class="magic-img" onclick="openImageModal('${escapeHtml(a.image)}', event)" alt="연금술 인증샷">` : ''}
               
               <div style="margin-top: 8px; margin-bottom: 8px;">
@@ -1295,8 +1461,8 @@
               <td>
                 <span class="gift-prof-badge">👨‍🏫 ${escapeHtml(g.professor)}</span>
                 <div style="display:inline-block; margin-left:6px;">
-                  <button class="gift-action-btn" onclick="tryAction(() => startGiftInlineEdit('${g.firestoreId}', event), event)">수정</button>
-                  <button class="gift-action-btn" onclick="tryAction(() => deleteGift('${g.firestoreId}', event), event)" style="color:#fc8181;">삭제</button>
+                  <button class="gift-action-btn" onclick="startGiftInlineEdit('${g.firestoreId}', event)">수정</button>
+                  <button class="gift-action-btn" onclick="deleteGift('${g.firestoreId}', event)" style="color:#fc8181;">삭제</button>
                 </div>
               </td>
             </tr>
