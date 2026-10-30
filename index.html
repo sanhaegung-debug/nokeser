@@ -227,18 +227,6 @@
       background-color: rgba(49, 151, 149, 0.05);
     }
 
-    .magic-img {
-      width: 100%;
-      max-height: 250px;
-      object-fit: contain;
-      border-radius: 8px;
-      margin: 12px 0;
-      background-color: #14120e;
-      cursor: pointer;
-      transition: opacity 0.2s;
-    }
-    .magic-img:hover { opacity: 0.85; }
-
     .card-title {
       font-size: 18px;
       font-weight: bold;
@@ -394,23 +382,6 @@
       border: 1px solid var(--border-color);
     }
 
-    #imageModal {
-      display: none;
-      position: fixed;
-      top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.9);
-      justify-content: center;
-      align-items: center;
-      z-index: 2000;
-      cursor: pointer;
-    }
-
-    #expandedImg {
-      max-width: 95%;
-      max-height: 85vh;
-      border-radius: 8px;
-    }
-
     .card-action-btns {
       position: absolute;
       top: 15px;
@@ -536,7 +507,7 @@
         </div>
       </div>
 
-      <!-- 마법 신규 등록 폼 -->
+      <!-- 마법 신규 등록 폼 (이미지 입력 제거됨) -->
       <div id="form-magic-card" class="card" style="display:none;">
         <h4 style="color:var(--accent-color); margin-top:0;">새 마법해금 정보 등록</h4>
         <input type="text" id="magTitle" placeholder="마법 이름 (예: 파이어볼 2단계)">
@@ -551,12 +522,6 @@
         <input type="text" id="magMaterials" placeholder="필요 재료 (예: 마력 결정 5개)">
         <input type="text" id="magLocation" placeholder="해금 조건 (예: 네더 요새에서 몬스터 50마리 처치)">
         <textarea id="magDesc" rows="3" placeholder="상세 공략 및 주의사항 (선택사항)"></textarea>
-        
-        <label style="font-size: 0.85em; color: #b8af9c; display: block; margin-top: 5px;">인증 이미지 URL 링크 직접 입력:</label>
-        <input type="text" id="magImgUrl" placeholder="https://example.com/image.jpg">
-
-        <label style="font-size: 0.85em; color: #b8af9c; display: block; margin-top: 5px;">또는 파일 선택 (직접 업로드):</label>
-        <input type="file" id="magFile" accept="image/*" style="margin-top:2px;">
 
         <div style="display:flex; gap:8px; margin-top:10px;">
           <button onclick="saveNewMagic()">등록하기</button>
@@ -656,11 +621,6 @@
     </div>
   </div>
 
-  <!-- 이미지 확대 모달 -->
-  <div id="imageModal" onclick="closeImageModal()">
-    <img id="expandedImg" src="">
-  </div>
-
   <!-- 카드 상세 보기 모달 -->
   <div id="detailModal" class="modal" onclick="closeDetailModal()">
     <div class="modal-content" onclick="event.stopPropagation()">
@@ -669,7 +629,7 @@
     </div>
   </div>
 
-  <!-- 첫 접속 및 사용자 변경 로그인 모달 (비밀번호: 223344) -->
+  <!-- 첫 접속 및 사용자 변경 로그인 모달 -->
   <div id="loginModal" class="modal" style="display:flex;">
     <div class="modal-content" style="max-width: 500px;">
       <h3 style="margin-top:0; color:var(--accent-color);">✨ 노크세르 기숙사 입장</h3>
@@ -681,7 +641,7 @@
       </select>
 
       <label style="font-size:0.85em; color:#cbd5e0; display:block; margin-bottom:5px;">스트리머 비밀번호:</label>
-      <input type="password" id="checkSecretPw" placeholder="비밀번호 입력 (223344)">
+      <input type="password" id="checkSecretPw" placeholder="비밀번호 입력">
 
       <button onclick="verifyStreamerLogin()" style="width:100%; margin-top:5px; padding:10px;">입장하기</button>
     </div>
@@ -690,7 +650,6 @@
   <script>
     const STREAMER_PASSWORD = "223344"; 
 
-    // 이미지 및 기존 명단에 기반한 노크세르 기숙사 멤버 전체 명단
     const STREAMERS = [
       "조디악", "황정민", "엔쥬", "따스히", "꿀탱탱", "피아", "목츄리", "한비", "해리", "김레인",
       "미루", "연주아", "차투리", "차밍챠", "제이404", "화양씨", "온이유", "코노", "쩜냥이", "코코양",
@@ -855,14 +814,6 @@
 
     function closeModals() { document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); }
 
-    function openImageModal(imgSrc, event) {
-      if(event) event.stopPropagation();
-      document.getElementById('expandedImg').src = imgSrc;
-      document.getElementById('imageModal').style.display = 'flex';
-    }
-
-    function closeImageModal() { document.getElementById('imageModal').style.display = 'none'; }
-
     function openDetailModal(type, firestoreId, event) {
       if(event) event.stopPropagation();
       const modalBody = document.getElementById('detailModalBody');
@@ -878,7 +829,6 @@
           <div style="font-size:12px; color:#b8af9c; margin-bottom:15px; border-bottom:1px solid var(--border-color); padding-bottom:8px;">
             최종 수정자: ${escapeHtml(item.author)} | 등록일: ${item.date || '-'}
           </div>
-          ${item.image ? `<img src="${escapeHtml(item.image)}" style="width:100%; max-height:350px; object-fit:contain; border-radius:8px; margin-bottom:15px; cursor:pointer;" onclick="openImageModal('${escapeHtml(item.image)}', event)">` : ''}
           <div class="info-box" style="font-size:14px; margin-bottom:15px;">
             <div class="info-row" style="margin-bottom:8px;">필요 재료: <span style="font-size:14px;">${escapeHtml(item.materials || '미입력')}</span></div>
             <div class="info-row">해금 조건: <span style="font-size:14px;">${escapeHtml(item.location || '미입력')}</span></div>
@@ -901,7 +851,6 @@
           <div style="font-size:12px; color:#b8af9c; margin-bottom:15px; border-bottom:1px solid var(--border-color); padding-bottom:8px;">
             최종 수정자: ${escapeHtml(item.author)} | 등록일: ${item.date}
           </div>
-          ${item.image ? `<img src="${escapeHtml(item.image)}" style="width:100%; max-height:350px; object-fit:contain; border-radius:8px; margin-bottom:15px; cursor:pointer;" onclick="openImageModal('${escapeHtml(item.image)}', event)">` : ''}
           <div style="background:#14120e; padding:12px; border-radius:6px; border:1px solid var(--border-color); margin-bottom:15px;">
             <div style="font-size:13px; color:#b8af9c; margin-bottom:8px;">조합 재료 (총 ${matList.length}개):</div>
             <div style="display:flex; flex-wrap:wrap; gap:4px;">${tagsHtml || '<span style="color:#777;">등록된 재료가 없습니다.</span>'}</div>
@@ -953,8 +902,6 @@
         document.getElementById('magMaterials').value = '';
         document.getElementById('magLocation').value = '';
         document.getElementById('magDesc').value = '';
-        document.getElementById('magImgUrl').value = '';
-        document.getElementById('magFile').value = '';
         formCard.scrollIntoView({ behavior: 'smooth' });
       }
     }
@@ -970,18 +917,12 @@
       const materials = document.getElementById('magMaterials').value.trim();
       const location = document.getElementById('magLocation').value.trim();
       const description = document.getElementById('magDesc').value.trim();
-      const imgUrlInput = document.getElementById('magImgUrl') ? document.getElementById('magImgUrl').value.trim() : '';
-      const fileInput = document.getElementById('magFile');
 
       if(!title) { alert("마법 이름은 필수입니다."); return; }
 
-      let imageUrl = "";
-      if(imgUrlInput) imageUrl = imgUrlInput;
-      else if(fileInput && fileInput.files && fileInput.files[0]) imageUrl = await compressImage(fileInput.files[0]);
-
       const newMagic = {
         id: Date.now(), title, author, element, materials, location, description,
-        image: imageUrl, date: new Date().toLocaleDateString()
+        date: new Date().toLocaleDateString()
       };
       const docRef = await addDoc(collection(window.db, "knoxer_magics"), newMagic);
       store.magics.unshift({ firestoreId: docRef.id, ...newMagic });
@@ -1058,20 +999,17 @@
       const materials = document.getElementById(`edit_materials_${firestoreId}`).value.trim();
       const location = document.getElementById(`edit_location_${firestoreId}`).value.trim();
       const description = document.getElementById(`edit_desc_${firestoreId}`).value.trim();
-      const imgUrl = document.getElementById(`edit_imgUrl_${firestoreId}`).value.trim();
 
       if(!title) { alert("마법 이름은 필수입니다."); return; }
 
       const target = store.magics.find(m => m.firestoreId === firestoreId);
-      let imageUrl = target ? target.image : "";
-      if(imgUrl) imageUrl = imgUrl;
 
       if(target) {
         target.title = title; target.author = currentStreamer; target.element = element;
-        target.materials = materials; target.location = location; target.description = description; target.image = imageUrl;
+        target.materials = materials; target.location = location; target.description = description;
 
         await updateDoc(doc(window.db, "knoxer_magics", firestoreId), {
-          title, author: currentStreamer, element, materials, location, description, image: imageUrl
+          title, author: currentStreamer, element, materials, location, description
         });
       }
 
@@ -1308,7 +1246,6 @@
                 <input type="text" id="edit_materials_${m.firestoreId}" value="${escapeHtml(m.materials)}" placeholder="필요 재료">
                 <input type="text" id="edit_location_${m.firestoreId}" value="${escapeHtml(m.location)}" placeholder="해금 조건">
                 <textarea id="edit_desc_${m.firestoreId}" rows="2" placeholder="상세 공략">${escapeHtml(m.description)}</textarea>
-                <input type="text" id="edit_imgUrl_${m.firestoreId}" value="${escapeHtml(m.image && m.image.startsWith('http') ? m.image : '')}" placeholder="인증 이미지 URL 링크">
                 
                 <div style="display:flex; gap:6px; margin-top:8px;">
                   <button onclick="saveInlineEdit('${m.firestoreId}', event)" style="flex:1; padding:6px;">저장</button>
@@ -1327,7 +1264,6 @@
               <span class="badge badge-${elType}">${elType} 속성</span>
               <div class="card-title" style="margin-right: 80px;">${escapeHtml(m.title)}</div>
               <div class="card-subtitle">최종 수정자: ${escapeHtml(m.author)} | ${m.date || '-'}</div>
-              ${m.image ? `<img src="${escapeHtml(m.image)}" class="magic-img" onclick="openImageModal('${escapeHtml(m.image)}', event)" alt="마법 인증샷">` : ''}
               <div class="info-box">
                 <div class="info-row">필요 재료: <span>${escapeHtml(m.materials || '미입력')}</span></div>
                 <div class="info-row">해금 조건: <span>${escapeHtml(m.location || '미입력')}</span></div>
@@ -1404,7 +1340,6 @@
               <span class="badge badge-연금술">🧪 연금술</span>
               <div class="card-title" style="margin-right: 80px;">${escapeHtml(a.title)}</div>
               <div class="card-subtitle">최종 수정자: ${escapeHtml(a.author)} | ${a.date}</div>
-              ${a.image ? `<img src="${escapeHtml(a.image)}" class="magic-img" onclick="openImageModal('${escapeHtml(a.image)}', event)" alt="연금술 인증샷">` : ''}
               
               <div style="margin-top: 8px; margin-bottom: 8px;">
                 <div style="font-size: 12px; color: #b8af9c; margin-bottom: 4px;">조합 재료 (총 ${matList.length}개):</div>
