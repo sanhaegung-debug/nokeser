@@ -352,14 +352,14 @@
     }
 
     function setElementFilter(element, btnEl) {
-      currentElementFilter = element; currentPage = 1;
+      currentElementFilter = element; currentPage = 1; editingId = null;
       document.querySelectorAll('.element-sub-btn').forEach(b => b.classList.remove('active'));
       btnEl.classList.add('active');
       renderMagics();
     }
 
     function setStatusFilter(status, btnEl) {
-      currentStatusFilter = status; currentPage = 1;
+      currentStatusFilter = status; currentPage = 1; editingId = null;
       document.querySelectorAll('.status-sub-btn').forEach(b => b.classList.remove('active'));
       btnEl.classList.add('active');
       renderMagics();
@@ -494,7 +494,7 @@
     function startInlineEdit(id, event) { 
       if(event) event.stopPropagation(); 
       closeMagicForm(); 
-      editingId = id; 
+      editingId = String(id); 
       renderMagics(); 
     }
 
@@ -525,7 +525,7 @@
       const description = descInput ? descInput.value.trim() : '';
       const targetPage = pageSelect ? parseInt(pageSelect.value) || 1 : 1;
       
-      const target = store.magics.find(m => m.id == id);
+      const target = store.magics.find(m => String(m.id) === String(id));
       if(target) {
         target.title = title; 
         target.author = currentStreamer; 
@@ -537,7 +537,7 @@
         let sameElementMagics = store.magics.filter(m => m.element === element);
         sameElementMagics.sort((a, b) => getPhotoOrder(a) - getPhotoOrder(b));
         
-        sameElementMagics = sameElementMagics.filter(m => m.id !== id);
+        sameElementMagics = sameElementMagics.filter(m => String(m.id) !== String(id));
         let insertIndex = (targetPage - 1) * itemsPerPage;
         if(insertIndex > sameElementMagics.length) insertIndex = sameElementMagics.length;
         sameElementMagics.splice(insertIndex, 0, target);
@@ -711,7 +711,7 @@
       paginatedItems.forEach(m => {
         const elType = m.element || '바람';
         const isCompleted = !!store.myCompletions[m.id];
-        const isEditing = (editingId === m.id);
+        const isEditing = (String(editingId) === String(m.id));
 
         if (isEditing) {
           const elementMagicsCount = currentElementFilter === 'all' ? store.magics.length : store.magics.filter(item => item.element === currentElementFilter).length;
