@@ -192,7 +192,7 @@
     let currentPage = 1;
     const itemsPerPage = 9;
     let currentStreamer = null;
-    let editingMagicId = null; // 수정 중인 마법 ID 관리
+    let editingMagicId = null;
 
     function getPhotoOrder(item) {
       if (item.order !== undefined && item.order !== null) return item.order;
@@ -367,7 +367,7 @@
     function closeDetailModal() { document.getElementById('detailModal').style.display = 'none'; }
     function closeEditModal() { document.getElementById('editModal').style.display = 'none'; }
 
-    // 마법 수정 모달 열기
+    // 수정 모달 열기
     function openEditModal(id, event) {
       if(event) event.stopPropagation();
       const item = store.magics.find(m => String(m.id) === String(id));
@@ -375,31 +375,27 @@
 
       editingMagicId = id;
       document.getElementById('editMagTitle').value = item.title || '';
-      document.getElementById('editMagElement').value = item.element || '바람';
       document.getElementById('editMagMaterials').value = item.materials || '';
       document.getElementById('editMagLocation').value = item.location || '';
       document.getElementById('editMagDesc').value = item.description || '';
 
-      // 페이지 이동 선택 옵션 동적 생성
-      const elementMagicsCount = currentElementFilter === 'all' ? store.magics.length : store.magics.filter(m => m.element === currentElementFilter).length;
-      const maxElementPages = Math.ceil(elementMagicsCount / itemsPerPage) || 1;
-      let pageOptions = '';
-      for(let p = 1; p <= maxElementPages; p++) {
-        pageOptions += `<option value="${p}" ${p === currentPage ? 'selected' : ''}>${p}페이지</option>`;
-      }
-      document.getElementById('editMagPage').innerHTML = pageOptions;
+      const elements = ['바람', '화염', '물', '대지', '빛', '어둠'];
+      let elOptions = '';
+      elements.forEach(el => {
+        elOptions += `<option value="${el}" ${item.element === el ? 'selected' : ''}>${el} 속성</option>`;
+      });
+      document.getElementById('editMagElement').innerHTML = elOptions;
 
       document.getElementById('editModal').style.display = 'flex';
     }
 
-    // 마법 수정 저장 처리
+    // 수정 저장 처리
     async function saveEditMagic() {
       const title = document.getElementById('editMagTitle').value.trim();
       const element = document.getElementById('editMagElement').value;
       const materials = document.getElementById('editMagMaterials').value.trim();
       const location = document.getElementById('editMagLocation').value.trim();
       const description = document.getElementById('editMagDesc').value.trim();
-      const targetPage = parseInt(document.getElementById('editMagPage').value) || 1;
 
       if(!title) {
         alert("마법 이름은 필수입니다.");
@@ -409,45 +405,29 @@
       const target = store.magics.find(m => String(m.id) === String(editingMagicId));
       if(target) {
         target.title = title;
-        target.author = currentStreamer;
+        target.author = currentStreamer || "관리자";
         target.element = element;
         target.materials = materials;
         target.location = location;
         target.description = description;
 
-        // 속성별 정렬 후 페이지 위치에 맞게 order 재조정
-        let sameElementMagics = store.magics.filter(m => m.element === element);
-        sameElementMagics.sort((a, b) => getPhotoOrder(a) - getPhotoOrder(b));
-        
-        sameElementMagics = sameElementMagics.filter(m => String(m.id) !== String(editingMagicId));
-        let insertIndex = (targetPage - 1) * itemsPerPage;
-        if(insertIndex > sameElementMagics.length) insertIndex = sameElementMagics.length;
-        sameElementMagics.splice(insertIndex, 0, target);
-
-        sameElementMagics.forEach((m, idx) => {
-          m.order = idx;
-        });
-
-        store.magics.sort((a, b) => getPhotoOrder(a) - getPhotoOrder(b));
-
-        const { doc, updateDoc } = window.firebaseOps;
-        for(let m of store.magics) {
-          await updateDoc(doc(window.db, "knoxer_magics", String(m.id)), { 
-            order: m.order, 
-            element: m.element, 
-            title: m.title, 
-            materials: m.materials, 
-            location: m.location, 
-            description: m.description, 
-            author: m.author 
-          });
-        }
+        const { doc, setDoc } = window.firebaseOps;
+        await setDoc(doc(window.db, "knoxer_magics", String(target.id)), { 
+          id: String(target.id),
+          order: target.order, 
+          element: target.element, 
+          title: target.title, 
+          materials: target.materials, 
+          location: target.location, 
+          description: target.description, 
+          author: target.author, 
+          date: target.date || new Date().toLocaleDateString()
+        }, { merge: true });
       }
 
       closeEditModal();
-      currentPage = targetPage;
       renderMagics();
-      alert("수정 및 페이지 이동이 완료되었습니다!");
+      alert("해금 정보가 성공적으로 수정되었습니다!");
     }
 
     function openDetailModal(type, id, event) {
@@ -492,7 +472,7 @@
         const formCard = document.getElementById('form-magic-card');
         formCard.style.display = 'block';
         document.getElementById('magTitle').value = '';
-        document.getElementById('magElement').value = '바람';
+        document.getElementById('magElement').value = currentElementFilter === 'all' ? '바람' : currentElementFilter;
         document.getElementById('magMaterials').value = '';
         document.getElementById('magLocation').value = '';
         document.getElementById('magDesc').value = '';
@@ -504,23 +484,54 @@
     function closeAlcForm() { document.getElementById('form-alc-card').style.display = 'none'; }
     function closeGiftForm() { document.getElementById('form-gift-card').style.display = 'none'; }
 
+    // 현재 보고 있는 페이지에 새 마법 등록
     async function saveNewMagic() {
       const title = document.getElementById('magTitle').value.trim();
-      const author = currentStreamer;
+      const author = currentStreamer || "관리자";
       const element = document.getElementById('magElement').value;
       const materials = document.getElementById('magMaterials').value.trim();
       const location = document.getElementById('magLocation').value.trim();
       const description = document.getElementById('magDesc').value.trim();
-      if(!title) { alert("마법 이름은 필수입니다."); return; }
-      const maxOrder = store.magics.reduce((max, m) => (m.order !== undefined && m.order > max ? m.order : max), 0);
-      const id = "mag_" + Date.now();
-      const newMagic = { id, title, author, element, materials, location, description, order: maxOrder + 1, date: new Date().toLocaleDateString() };
       
-      const { doc, setDoc } = window.firebaseOps;
-      await setDoc(doc(window.db, "knoxer_magics", id), newMagic);
+      if(!title) { alert("마법 이름은 필수입니다."); return; }
+      
+      const id = "mag_" + Date.now();
+      const newMagic = { id, title, author, element, materials, location, description, order: 0, date: new Date().toLocaleDateString() };
+      
       store.magics.push(newMagic);
+
+      let sameElementMagics = store.magics.filter(m => m.element === element);
+      sameElementMagics.sort((a, b) => getPhotoOrder(a) - getPhotoOrder(b));
+      
+      sameElementMagics = sameElementMagics.filter(m => String(m.id) !== String(id));
+      let insertIndex = (currentPage - 1) * itemsPerPage;
+      if(insertIndex > sameElementMagics.length) insertIndex = sameElementMagics.length;
+      sameElementMagics.splice(insertIndex, 0, newMagic);
+
+      sameElementMagics.forEach((m, idx) => {
+        m.order = idx;
+      });
+
       store.magics.sort((a, b) => getPhotoOrder(a) - getPhotoOrder(b));
-      closeMagicForm(); renderMagics(); alert("성공적으로 등록되었습니다!");
+
+      const { doc, setDoc } = window.firebaseOps;
+      for (let m of store.magics) {
+        await setDoc(doc(window.db, "knoxer_magics", String(m.id)), {
+          id: String(m.id),
+          order: m.order,
+          element: m.element,
+          title: m.title,
+          materials: m.materials,
+          location: m.location,
+          description: m.description,
+          author: m.author,
+          date: m.date
+        }, { merge: true });
+      }
+
+      closeMagicForm(); 
+      renderMagics(); 
+      alert("현재 보고 계신 페이지에 성공적으로 등록되었습니다!");
     }
 
     async function deleteMagic(id, event) {
@@ -644,11 +655,11 @@
 
             renderMagics();
 
-            const { doc, updateDoc } = window.firebaseOps;
+            const { doc, setDoc } = window.firebaseOps;
             for (let item of store.magics) {
-              await updateDoc(doc(window.db, "knoxer_magics", String(item.id)), {
+              await setDoc(doc(window.db, "knoxer_magics", String(item.id)), {
                 order: item.order
-              });
+              }, { merge: true });
             }
           }
         });
@@ -833,7 +844,6 @@
       <div id="magicPagination" class="pagination-container"></div>
     </div>
 
-    <!-- 연금술 탭 등 나머지 생략 없이 전체 유지 -->
     <div id="tab-alchemy" class="tab-content">
       <div class="filter-search-bar">
         <div class="search-input-box" style="flex:1;">
@@ -903,26 +913,17 @@
     </div>
   </div>
 
-  <!-- 수정 전용 모달 창 (오류 완벽 차단) -->
+  <!-- 마법 해금 정보 수정 모달 -->
   <div id="editModal" class="modal" onclick="closeEditModal()">
     <div class="modal-content" onclick="event.stopPropagation()">
       <h3 style="color:var(--accent-color); margin-top:0;">🔮 마법해금 정보 수정</h3>
       <input type="text" id="editMagTitle" placeholder="마법 이름">
-      <select id="editMagElement">
-        <option value="바람">💨 바람 속성</option>
-        <option value="화염">🔥 화염 속성</option>
-        <option value="물">💧 물 속성</option>
-        <option value="대지">🌍 대지 속성</option>
-        <option value="빛">✨ 빛 속성</option>
-        <option value="어둠">🌑 어둠 속성</option>
-      </select>
-      <label style="font-size:12px; color:#b8af9c; display:block; margin-bottom:3px;">이동할 페이지 선택:</label>
-      <select id="editMagPage" style="margin-bottom:8px;"></select>
+      <select id="editMagElement"></select>
       <input type="text" id="editMagMaterials" placeholder="필요 재료">
       <input type="text" id="editMagLocation" placeholder="해금 조건">
       <textarea id="editMagDesc" rows="3" placeholder="상세 공략"></textarea>
       <div style="display:flex; gap:8px; margin-top:10px;">
-        <button onclick="saveEditMagic()" style="flex:1;">저장 및 이동</button>
+        <button onclick="saveEditMagic()" style="flex:1;">수정 완료</button>
         <button class="btn-secondary" onclick="closeEditModal()" style="flex:1;">취소</button>
       </div>
     </div>
