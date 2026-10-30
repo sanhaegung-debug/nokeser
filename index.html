@@ -478,9 +478,12 @@
     <!-- 1. 마법해금 조건 공유 탭 -->
     <div id="tab-magic" class="tab-content active">
       
-      <!-- 내 진척도 패널 -->
+      <!-- 내 진척도 패널 (전체 총 합산 표시 추가) -->
       <div id="progressPanel" class="progress-panel">
-        <div style="font-weight: bold; color: var(--accent-color); margin-bottom: 5px;" id="progressTitle">📊 내 마법 해금 진척도</div>
+        <div style="font-weight: bold; color: var(--accent-color); margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 5px;">
+          <span id="progressTitle">📊 내 마법 해금 진척도</span>
+          <span id="totalProgressSummary" style="background: rgba(241, 196, 15, 0.15); padding: 3px 10px; border-radius: 12px; font-size: 0.9em; border: 1px solid var(--accent-color);">총 해금: 0 / 0개 (0%)</span>
+        </div>
         <div class="progress-grid" id="progressGrid"></div>
       </div>
 
@@ -650,7 +653,6 @@
   <script>
     const STREAMER_PASSWORD = "223344"; 
 
-    // '춘봉' 스트리머를 추가한 노크세르 멤버 전체 명단
     const STREAMERS = [
       "조디악", "황정민", "엔쥬", "따스히", "꿀탱탱", "피아", "목츄리", "한비", "해리", "김레인",
       "미루", "연주아", "차투리", "차밍챠", "제이404", "화양씨", "온이유", "코노", "쩜냥이", "코코양",
@@ -1183,6 +1185,13 @@
       const grid = document.getElementById('progressGrid');
       document.getElementById('progressTitle').innerText = `📊 ${currentStreamer}님의 속성별 마법 해금 진척도`;
       grid.innerHTML = '';
+
+      // 전체 마법 개수 및 내가 해금한 전체 개수 계산
+      const totalMagics = store.magics.length;
+      const totalCompleted = store.magics.filter(m => store.myCompletions[m.firestoreId]).length;
+      const totalPercent = totalMagics > 0 ? Math.round((totalCompleted / totalMagics) * 100) : 0;
+      
+      document.getElementById('totalProgressSummary').innerText = `총 해금: ${totalCompleted} / ${totalMagics}개 (${totalPercent}%)`;
 
       const elements = ['바람', '화염', '물', '대지', '빛', '어둠'];
       elements.forEach(el => {
