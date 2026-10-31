@@ -175,7 +175,7 @@
         "경고의 실", "운명의 실", "금서의 계약", "공허의 입", "망령의 행진", "월식의 눈", "심연의 문"
       ],
       "바람": [
-        "깃털 낙하", "윈드 푸쉬", "바람의 전언", "바람 걸음", "바람 털빛", "미라지 슈터", "클린", "바람 송곳", "작은 회오리",
+        "깃털 낙하", "윈드 푸쉬", "바람의 전언", "바람 걸음", "바람 털빛.", "미라지 슈터", "클린", "바람 송곳", "작은 회오리",
         "계절 예보", "상승기류", "손길 너머", "반달 바람날", "사뿐한 발걸음", "바람바구니", "수확의 바람", "윈드 커터", "깃털 털기",
         "바람 화살", "되돌이 칼날", "빗자루 차원이동", "돌풍 날갯짓", "깃털 폭풍", "포효 도약", "질풍 연격", "몰이 바람", "미스틱 슈터",
         "끌어오기", "순풍", "비행", "되받는 바람", "잎새 청소", "윈드 프레스", "바람 미끼", "토네이도 스핀", "진공 폭발",
@@ -194,7 +194,6 @@
     let editingId = null, editingAlcId = null, editingGiftId = null;
     let isSavingMagic = false; 
 
-    // [핵심] 스크린샷 순서와 일치하는지 확인하고, 오타나 불일치 항목은 9999를 반환하여 맨 뒤로 보냄
     function getPhotoOrder(item) {
       const el = item.element;
       if (SCREENSHOT_ORDERS[el]) {
@@ -202,11 +201,11 @@
         const list = SCREENSHOT_ORDERS[el];
         for (let i = 0; i < list.length; i++) {
           if (list[i].replace(/\s+/g, "").toLowerCase() === cleanTitle) {
-            return i; // 스크린샷 순서 번호 반환
+            return i;
           }
         }
       }
-      return 9999; // 일치하지 않거나 오타가 있는 마법은 맨 뒤로 배치
+      return 9999; 
     }
 
     window.addEventListener('DOMContentLoaded', () => {
@@ -266,10 +265,10 @@
 
         store.magics = Array.from(uniqueMagicsMap.values());
         
+        // 데이터가 전혀 없을 때만 초기 생성 수행 (삭제된 항목이 자동 부활하지 않도록 빈 배열일 때만 작동)
         if(store.magics.length === 0) {
           await initServerMagics();
         } else {
-          // [수정] 스크린샷 순서를 기준으로 완벽하게 정렬 (오타/미일치 마법은 맨 뒤로)
           store.magics.sort((a, b) => getPhotoOrder(a) - getPhotoOrder(b));
         }
 
@@ -307,7 +306,6 @@
             materials: "미입력",
             location: "미입력",
             description: "",
-            order: idx,
             date: "2026. 10. 29."
           };
           list.push(item);
@@ -608,11 +606,19 @@
     async function deleteMagic(id, event) {
       if(event) event.stopPropagation();
       if(!confirm("정말 이 해금 정보를 삭제하시겠습니까?")) return;
+      
+      // 스토어와 화면에서 즉시 제거하고 파이어베이스 문서 ID를 정확히 타겟팅하여 영구 삭제
       store.magics = store.magics.filter(m => m.id != id);
       
       const { doc, deleteDoc } = window.firebaseOps;
-      await deleteDoc(doc(window.db, "knoxer_magics", String(id)));
-      renderMagics(); alert("삭제되었습니다.");
+      try {
+        await deleteDoc(doc(window.db, "knoxer_magics", String(id)));
+        renderMagics(); 
+        alert("삭제되었습니다.");
+      } catch(e) {
+        console.error("삭제 실패:", e);
+        alert("삭제 중 오류가 발생했습니다.");
+      }
     }
 
     async function deleteAlchemy(id, event) {
@@ -693,7 +699,6 @@
         return matchElement && matchSearch && matchStatus;
       });
 
-      // 스크린샷 순서 기준 정렬 적용
       filtered.sort((a, b) => getPhotoOrder(a) - getPhotoOrder(b));
 
       if(filtered.length === 0) {
@@ -745,7 +750,7 @@
               <button onclick="startInlineEdit('${m.id}', event)">수정</button>
               <button onclick="deleteMagic('${m.id}', event)" style="color:#fc8181;">삭제</button>
             </div>
-            <span class="badge badge-${elType}">쿠폰/속성</span>
+            <span class="badge badge-${elType}">${elType} 속성</span>
             <div class="card-title" style="margin-right: 80px;">${escapeHtml(m.title)}</div>
             <div class="card-subtitle">최종 수정자: ${escapeHtml(m.author)} | ${m.date || '-'}</div>
             <div class="info-box">
