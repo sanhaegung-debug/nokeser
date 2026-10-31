@@ -254,14 +254,12 @@
         let rawMagics = [];
         magSnap.forEach(docSnap => rawMagics.push({ id: docSnap.id, ...docSnap.data() }));
 
-        // [핵심] 해금조건 및 공략 내용은 100% 보존하면서 화면과 메모리에서 중복 마법을 필터링하는 로직
         let uniqueMagicsMap = new Map();
         rawMagics.forEach(item => {
           const key = `${item.element}_${(item.title || '').replace(/\s+/g, '').toLowerCase()}`;
           if (!uniqueMagicsMap.has(key)) {
             uniqueMagicsMap.set(key, item);
           } else {
-            // 똑같은 마법이 있을 때, 재료/해금조건/설명이 적혀있는 유효한 알짜배기 데이터를 유지
             const existing = uniqueMagicsMap.get(key);
             const existingScore = (existing.materials && existing.materials !== '미입력' ? 1 : 0) + (existing.location && existing.location !== '미입력' ? 1 : 0) + (existing.description ? 1 : 0);
             const currentScore = (item.materials && item.materials !== '미입력' ? 1 : 0) + (item.location && item.location !== '미입력' ? 1 : 0) + (item.description ? 1 : 0);
@@ -277,7 +275,8 @@
         if(store.magics.length === 0) {
           await initServerMagics();
         } else {
-          store.magics.sort((a, b) => getPhotoOrder(a) - getPhotoOrder(b));
+          // [수정] 강제 자동 정렬 대신 사용자가 지정한 order 값을 최우선으로 유지
+          store.magics.sort((a, b) => (a.order ?? 9999) - (b.order ?? 9999));
         }
 
         const alcSnap = await getDocs(collection(window.db, "knoxer_alchemys"));
@@ -322,7 +321,7 @@
         });
       }
       store.magics = list;
-      store.magics.sort((a, b) => getPhotoOrder(a) - getPhotoOrder(b));
+      store.magics.sort((a, b) => (a.order ?? 9999) - (b.order ?? 9999));
     }
 
     async function loadMyCompletionsFromServer() {
@@ -505,7 +504,7 @@
         await setDoc(doc(window.db, "knoxer_magics", id), newMagic);
         
         store.magics.push(newMagic);
-        store.magics.sort((a, b) => getPhotoOrder(a) - getPhotoOrder(b));
+        store.magics.sort((a, b) => (a.order ?? 9999) - (b.order ?? 9999));
         
         closeMagicForm(); 
         renderAll(); 
@@ -565,7 +564,7 @@
       const target = store.magics.find(m => m.id == id);
       if(target) {
         target.title = title; target.author = currentStreamer; target.element = element; target.materials = materials; target.location = location; target.description = description;
-        store.magics.sort((a, b) => getPhotoOrder(a) - getPhotoOrder(b));
+        store.magics.sort((a, b) => (a.order ?? 9999) - (b.order ?? 9999));
         
         const { doc, updateDoc } = window.firebaseOps;
         await updateDoc(doc(window.db, "knoxer_magics", String(id)), { title, author: currentStreamer, element, materials, location, description });
@@ -704,7 +703,8 @@
         return matchElement && matchSearch && matchStatus;
       });
 
-      filtered.sort((a, b) => getPhotoOrder(a) - getPhotoOrder(b));
+      // [수정] 강제 자동 정렬을 완전히 제거하고, 드래그 앤 드롭으로 지정된 order 순서만 유지되도록 고정
+      filtered.sort((a, b) => (a.order ?? 9999) - (b.order ?? 9999));
 
       if(filtered.length === 0) {
         grid.innerHTML = `<p style="color:#777; grid-column: 1/-1; text-align:center;">조건에 일치하는 마법 해금 조건이 없습니다.</p>`;
