@@ -198,9 +198,8 @@
     let currentStreamer = null;
     let editingId = null, editingAlcId = null, editingGiftId = null;
     let draggedCard = null;
-    let isSavingMagic = false; // 중복 클릭 방지 플래그
+    let isSavingMagic = false; 
 
-    // 띄어쓰기 및 특수문자 무시하고 순서 매칭
     function getPhotoOrder(item) {
       if (item.order !== undefined && item.order !== null) return item.order;
       const el = item.element;
@@ -252,8 +251,28 @@
       const { collection, getDocs } = window.firebaseOps;
       try {
         const magSnap = await getDocs(collection(window.db, "knoxer_magics"));
-        store.magics = [];
-        magSnap.forEach(docSnap => store.magics.push({ id: docSnap.id, ...docSnap.data() }));
+        let rawMagics = [];
+        magSnap.forEach(docSnap => rawMagics.push({ id: docSnap.id, ...docSnap.data() }));
+
+        // [핵심] 해금조건 및 공략 내용은 100% 보존하면서 화면과 메모리에서 중복 마법을 필터링하는 로직
+        let uniqueMagicsMap = new Map();
+        rawMagics.forEach(item => {
+          const key = `${item.element}_${(item.title || '').replace(/\s+/g, '').toLowerCase()}`;
+          if (!uniqueMagicsMap.has(key)) {
+            uniqueMagicsMap.set(key, item);
+          } else {
+            // 똑같은 마법이 있을 때, 재료/해금조건/설명이 적혀있는 유효한 알짜배기 데이터를 유지
+            const existing = uniqueMagicsMap.get(key);
+            const existingScore = (existing.materials && existing.materials !== '미입력' ? 1 : 0) + (existing.location && existing.location !== '미입력' ? 1 : 0) + (existing.description ? 1 : 0);
+            const currentScore = (item.materials && item.materials !== '미입력' ? 1 : 0) + (item.location && item.location !== '미입력' ? 1 : 0) + (item.description ? 1 : 0);
+            
+            if (currentScore > existingScore) {
+              uniqueMagicsMap.set(key, item);
+            }
+          }
+        });
+
+        store.magics = Array.from(uniqueMagicsMap.values());
         
         if(store.magics.length === 0) {
           await initServerMagics();
@@ -447,7 +466,7 @@
     function closeGiftForm() { document.getElementById('form-gift-card').style.display = 'none'; }
 
     async function saveNewMagic() {
-      if (isSavingMagic) return; // 중복 클릭 방지
+      if (isSavingMagic) return; 
       const title = document.getElementById('magTitle').value.trim();
       const author = currentStreamer;
       const element = document.getElementById('magElement').value;
@@ -456,8 +475,7 @@
       const description = document.getElementById('magDesc').value.trim();
       
       if(!title) { alert("마법 이름은 필수입니다."); return; }
-      
-      // [중복 방지 안전장치] 이미 동일한 이름과 속성의 마법이 등록되어 있는지 확인
+
       const cleanNewTitle = title.replace(/\s+/g, "").toLowerCase();
       const isAlreadyExists = store.magics.some(m => m.element === element && m.title.replace(/\s+/g, "").toLowerCase() === cleanNewTitle);
       if (isAlreadyExists) {
