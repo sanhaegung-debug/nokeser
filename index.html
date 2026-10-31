@@ -58,14 +58,9 @@
     .page-btn.active { background-color: var(--accent-color); color: #1a1813; border-color: var(--accent-color); }
     .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    .magic-card { background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 18px; position: relative; display: flex; flex-direction: column; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: transform 0.2s, border-color 0.2s, opacity 0.2s; cursor: grab; }
-    .magic-card:active { cursor: grabbing; }
-    .magic-card.dragging { opacity: 0.4; border: 2px dashed var(--accent-color); }
+    .magic-card { background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 18px; position: relative; display: flex; flex-direction: column; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: transform 0.2s, border-color 0.2s, opacity 0.2s; }
     .magic-card:hover { border-color: var(--accent-color); transform: translateY(-2px); }
     .magic-card.completed { border-color: #319795; background-color: rgba(49, 151, 149, 0.05); }
-
-    .drag-handle { position: absolute; top: 12px; left: 12px; color: #666; font-size: 14px; cursor: grab; user-select: none; }
-    .magic-card:hover .drag-handle { color: var(--accent-color); }
 
     .card-title { font-size: 18px; font-weight: bold; color: #fff; margin-bottom: 4px; }
     .card-subtitle { font-size: 12px; color: #b8af9c; margin-bottom: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; }
@@ -197,22 +192,21 @@
     const itemsPerPage = 9;
     let currentStreamer = null;
     let editingId = null, editingAlcId = null, editingGiftId = null;
-    let draggedCard = null;
     let isSavingMagic = false; 
 
+    // [핵심] 스크린샷 순서와 일치하는지 확인하고, 오타나 불일치 항목은 9999를 반환하여 맨 뒤로 보냄
     function getPhotoOrder(item) {
-      if (item.order !== undefined && item.order !== null) return item.order;
       const el = item.element;
       if (SCREENSHOT_ORDERS[el]) {
         const cleanTitle = (item.title || "").replace(/\s+/g, "").toLowerCase();
         const list = SCREENSHOT_ORDERS[el];
         for (let i = 0; i < list.length; i++) {
           if (list[i].replace(/\s+/g, "").toLowerCase() === cleanTitle) {
-            return i;
+            return i; // 스크린샷 순서 번호 반환
           }
         }
       }
-      return 9999;
+      return 9999; // 일치하지 않거나 오타가 있는 마법은 맨 뒤로 배치
     }
 
     window.addEventListener('DOMContentLoaded', () => {
@@ -275,8 +269,8 @@
         if(store.magics.length === 0) {
           await initServerMagics();
         } else {
-          // [수정] 강제 자동 정렬 대신 사용자가 지정한 order 값을 최우선으로 유지
-          store.magics.sort((a, b) => (a.order ?? 9999) - (b.order ?? 9999));
+          // [수정] 스크린샷 순서를 기준으로 완벽하게 정렬 (오타/미일치 마법은 맨 뒤로)
+          store.magics.sort((a, b) => getPhotoOrder(a) - getPhotoOrder(b));
         }
 
         const alcSnap = await getDocs(collection(window.db, "knoxer_alchemys"));
@@ -321,7 +315,7 @@
         });
       }
       store.magics = list;
-      store.magics.sort((a, b) => (a.order ?? 9999) - (b.order ?? 9999));
+      store.magics.sort((a, b) => getPhotoOrder(a) - getPhotoOrder(b));
     }
 
     async function loadMyCompletionsFromServer() {
@@ -484,9 +478,7 @@
       
       isSavingMagic = true;
 
-      const targetOrder = (currentPage - 1) * itemsPerPage;
       const id = "mag_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9);
-      
       const newMagic = { 
         id, 
         title, 
@@ -495,7 +487,6 @@
         materials, 
         location, 
         description, 
-        order: targetOrder, 
         date: new Date().toLocaleDateString() 
       };
       
@@ -504,7 +495,7 @@
         await setDoc(doc(window.db, "knoxer_magics", id), newMagic);
         
         store.magics.push(newMagic);
-        store.magics.sort((a, b) => (a.order ?? 9999) - (b.order ?? 9999));
+        store.magics.sort((a, b) => getPhotoOrder(a) - getPhotoOrder(b));
         
         closeMagicForm(); 
         renderAll(); 
@@ -564,7 +555,7 @@
       const target = store.magics.find(m => m.id == id);
       if(target) {
         target.title = title; target.author = currentStreamer; target.element = element; target.materials = materials; target.location = location; target.description = description;
-        store.magics.sort((a, b) => (a.order ?? 9999) - (b.order ?? 9999));
+        store.magics.sort((a, b) => getPhotoOrder(a) - getPhotoOrder(b));
         
         const { doc, updateDoc } = window.firebaseOps;
         await updateDoc(doc(window.db, "knoxer_magics", String(id)), { title, author: currentStreamer, element, materials, location, description });
@@ -691,7 +682,6 @@
       const paginationContainer = document.getElementById('magicPagination');
       const searchKeyword = document.getElementById('magicSearchInput') ? document.getElementById('magicSearchInput').value.toLowerCase().trim() : '';
       grid.innerHTML = ''; paginationContainer.innerHTML = '';
-      const isDraggable = !searchKeyword;
 
       let filtered = store.magics.filter(m => {
         const matchElement = (currentElementFilter === 'all' || m.element === currentElementFilter);
@@ -703,8 +693,8 @@
         return matchElement && matchSearch && matchStatus;
       });
 
-      // [수정] 강제 자동 정렬을 완전히 제거하고, 드래그 앤 드롭으로 지정된 order 순서만 유지되도록 고정
-      filtered.sort((a, b) => (a.order ?? 9999) - (b.order ?? 9999));
+      // 스크린샷 순서 기준 정렬 적용
+      filtered.sort((a, b) => getPhotoOrder(a) - getPhotoOrder(b));
 
       if(filtered.length === 0) {
         grid.innerHTML = `<p style="color:#777; grid-column: 1/-1; text-align:center;">조건에 일치하는 마법 해금 조건이 없습니다.</p>`;
@@ -749,21 +739,13 @@
           const cardEl = document.createElement('div');
           cardEl.className = `magic-card ${isCompleted ? 'completed' : ''}`;
           cardEl.dataset.id = m.id;
-          if (isDraggable) {
-            cardEl.draggable = true;
-            cardEl.addEventListener('dragstart', handleDragStart);
-            cardEl.addEventListener('dragover', handleDragOver);
-            cardEl.addEventListener('drop', handleDrop);
-            cardEl.addEventListener('dragend', handleDragEnd);
-          }
           cardEl.onclick = (e) => openDetailModal('magic', m.id, e);
           cardEl.innerHTML = `
-            ${isDraggable ? '<div class="drag-handle" title="드래그하여 위치 변경">⋮⋮</div>' : ''}
             <div class="card-action-btns">
               <button onclick="startInlineEdit('${m.id}', event)">수정</button>
               <button onclick="deleteMagic('${m.id}', event)" style="color:#fc8181;">삭제</button>
             </div>
-            <span class="badge badge-${elType}" style="${isDraggable ? 'margin-left: 20px;' : ''}">${elType} 속성</span>
+            <span class="badge badge-${elType}">쿠폰/속성</span>
             <div class="card-title" style="margin-right: 80px;">${escapeHtml(m.title)}</div>
             <div class="card-subtitle">최종 수정자: ${escapeHtml(m.author)} | ${m.date || '-'}</div>
             <div class="info-box">
@@ -802,36 +784,6 @@
         paginationContainer.appendChild(nextBtn);
       }
     }
-
-    function handleDragStart(e) { draggedCard = this; this.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/html', this.innerHTML); }
-    function handleDragOver(e) { if (e.preventDefault) e.preventDefault(); e.dataTransfer.dropEffect = 'move'; return false; }
-    
-    async function handleDrop(e) {
-      if (e.stopPropagation) e.stopPropagation();
-      if (draggedCard !== this) {
-        const grid = document.getElementById('magicGrid');
-        const cards = Array.from(grid.querySelectorAll('.magic-card'));
-        const draggedIndex = cards.indexOf(draggedCard);
-        const targetIndex = cards.indexOf(this);
-        if (draggedIndex < targetIndex) { this.parentNode.insertBefore(draggedCard, this.nextSibling); }
-        else { this.parentNode.insertBefore(draggedCard, this); }
-        
-        const allCardElements = Array.from(grid.querySelectorAll('.magic-card'));
-        const newOrderMap = {};
-        allCardElements.forEach((el, idx) => { const id = el.dataset.id; if (id) newOrderMap[id] = idx; });
-        
-        const { doc, updateDoc } = window.firebaseOps;
-        store.magics.forEach(async m => { 
-          if (newOrderMap[m.id] !== undefined) {
-            m.order = newOrderMap[m.id];
-            await updateDoc(doc(window.db, "knoxer_magics", String(m.id)), { order: m.order });
-          }
-        });
-        store.magics.sort((a, b) => (a.order ?? 9999) - (b.order ?? 9999));
-      }
-      return false;
-    }
-    function handleDragEnd() { this.classList.remove('dragging'); draggedCard = null; }
 
     function renderAlchemys() {
       const grid = document.getElementById('alcGrid');
