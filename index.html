@@ -26,6 +26,10 @@
     .header { text-align: center; border-bottom: 2px solid var(--border-color); padding-bottom: 15px; margin-bottom: 15px; }
     .header h1 { color: var(--accent-color); margin: 0 0 5px 0; font-size: 26px; }
 
+    /* 방문자 통계 바 스타일 */
+    .visitor-stats-bar { display: flex; justify-content: center; gap: 20px; background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; margin-bottom: 15px; font-size: 0.9em; }
+    .visitor-stat-item span { color: var(--accent-color); font-weight: bold; }
+
     .user-bar { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 15px; font-size: 0.85em; flex-wrap: wrap; align-items: center; }
     .tab-menu { display: flex; gap: 5px; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; overflow-x: auto; white-space: nowrap; }
     .tab-btn { background-color: var(--card-bg); color: var(--text-color); border: 1px solid var(--border-color); padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.9em; flex-shrink: 0; }
@@ -103,14 +107,16 @@
     .inline-edit-box { background: #14120e; border: 1px solid var(--accent-color); border-radius: 8px; padding: 12px; margin-top: 10px; }
   </style>
 
-  <!-- Firebase SDK 설정 -->
+  <!-- Firebase SDK 설정 (Firestore + Realtime Database 통합) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getDatabase, ref, onValue, set, push, onDisconnect, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyD-실제발급받은키...",
       authDomain: "nokser-1d179.firebaseapp.com",
+      databaseURL: "https://nokser-1d179-default-rtdb.firebaseio.com", // 필요시 본인 RTDB URL 입력
       projectId: "nokser-1d179",
       storageBucket: "nokser-1d179.appspot.com",
       messagingSenderId: "123456789",
@@ -119,8 +125,52 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
+    const rtdb = getDatabase(app);
+
     window.db = db;
     window.firebaseOps = { collection, getDocs, doc, setDoc, deleteDoc, updateDoc };
+
+    // --- 실시간 접속자 및 24시간 방문자 카운터 로직 ---
+    window.addEventListener('DOMContentLoaded', () => {
+      // 1. 실시간 접속자 (Presence)
+      const myConnectionRef = push(ref(rtdb, 'presence/connections'));
+      onDisconnect(myConnectionRef).remove().then(() => {
+        set(myConnectionRef, { onlineAt: serverTimestamp() });
+      });
+
+      onValue(ref(rtdb, 'presence/connections'), (snapshot) => {
+        const count = snapshot.exists() ? Object.keys(snapshot.val()).length : 0;
+        const liveEl = document.getElementById('live-count');
+        if (liveEl) liveEl.innerText = count;
+      });
+
+      // 2. 24시간 누적 방문자
+      const visitorRef = ref(rtdb, 'visitors/log');
+      const myVisitRef = push(visitorRef);
+      set(myVisitRef, { timestamp: serverTimestamp() });
+      onDisconnect(myVisitRef).remove();
+
+      onValue(visitorRef, (snapshot) => {
+        const dailyEl = document.getElementById('daily-count');
+        if (!snapshot.exists()) {
+          if (dailyEl) dailyEl.innerText = 0;
+          return;
+        }
+
+        const now = Date.now();
+        const ONE_DAY = 24 * 60 * 60 * 1000;
+        let validCount = 0;
+
+        snapshot.forEach((childSnapshot) => {
+          const data = childSnapshot.val();
+          if (data.timestamp && (now - data.timestamp < ONE_DAY)) {
+            validCount++;
+          }
+        });
+
+        if (dailyEl) dailyEl.innerText = validCount;
+      });
+    });
   </script>
 
   <script>
@@ -265,7 +315,6 @@
 
         store.magics = Array.from(uniqueMagicsMap.values());
         
-        // 데이터가 전혀 없을 때만 초기 생성 수행 (삭제된 항목이 자동 부활하지 않도록 빈 배열일 때만 작동)
         if(store.magics.length === 0) {
           await initServerMagics();
         } else {
@@ -607,7 +656,6 @@
       if(event) event.stopPropagation();
       if(!confirm("정말 이 해금 정보를 삭제하시겠습니까?")) return;
       
-      // 스토어와 화면에서 즉시 제거하고 파이어베이스 문서 ID를 정확히 타겟팅하여 영구 삭제
       store.magics = store.magics.filter(m => m.id != id);
       
       const { doc, deleteDoc } = window.firebaseOps;
@@ -903,6 +951,12 @@
     <div class="header">
       <h1>✨ 노크세르 기숙사 연구소</h1>
       <p style="font-size: 0.9em; margin: 5px 0 0 0; color: #b8af9c;">SOOP 마인크래프트 서버 '차카데미' 노크세르 기숙사 전용 공유소</p>
+    </div>
+
+    <!-- 실시간 접속자 및 24시간 방문자 표시 바 -->
+    <div class="visitor-stats-bar">
+      <div class="visitor-stat-item">🟢 현재 실시간 접속자: <span id="live-count">--</span>명</div>
+      <div class="visitor-stat-item">📊 최근 24시간 방문자: <span id="daily-count">--</span>명</div>
     </div>
 
     <div class="user-bar">
